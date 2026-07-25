@@ -1,0 +1,22 @@
+{
+  "name": "mandate-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "examples/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev:miniapp": "npm run dev --workspace @mandate/miniapp",
+    "build": "npm run build --workspace @mandate/sdk && npm run build --workspace @mandate/miniapp && npm run build --workspace @mandate/contracts",
+    "typecheck": "npm run build --workspace @mandate/sdk && npm run typecheck --workspace @mandate/miniapp && npm run typecheck --workspace @mandate/example-game-pass",
+    "test": "npm run test --workspace @mandate/contracts",
+    "test:contracts": "npm run test --workspace @mandate/contracts",
+    "deploy:minato": "npm run deploy:minato --workspace @mandate/contracts",
+    "clean": "find . -type d \\( -name node_modules -o -name dist -o -name artifacts -o -name cache \\) -prune -exec rm -rf {} +"
+  }
+}
