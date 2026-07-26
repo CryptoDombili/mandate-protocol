@@ -7,6 +7,8 @@ export type Plan = {
   description: string
   benefits: string[]
   badge: string
+  accent: 'violet' | 'coral' | 'blue'
+  monogram: string
 }
 
 export const plans: Plan[] = [
@@ -16,9 +18,11 @@ export const plans: Plan[] = [
     merchant: 'Soneium Arcade',
     price: 5,
     period: '30 days',
-    description: 'One pass for premium tournaments and weekly in-game drops.',
+    description: 'Premium tournaments, weekly drops and a season-long member identity.',
     benefits: ['Premium tournaments', 'Weekly item pack', 'Founding member badge'],
     badge: 'GAME PASS',
+    accent: 'violet',
+    monogram: 'AP',
   },
   {
     id: 2,
@@ -26,9 +30,11 @@ export const plans: Plan[] = [
     merchant: 'Studio Kizuna',
     price: 2,
     period: '30 days',
-    description: 'Private releases, community rooms and event priority.',
+    description: 'Private releases, member rooms and priority access to live events.',
     benefits: ['Members-only posts', 'Private community', 'Event priority'],
     badge: 'CREATOR CLUB',
+    accent: 'coral',
+    monogram: 'CI',
   },
   {
     id: 3,
@@ -36,8 +42,10 @@ export const plans: Plan[] = [
     merchant: 'Open Builders',
     price: 3,
     period: '30 days',
-    description: 'Advanced templates and recurring technical briefings.',
+    description: 'Advanced templates and recurring technical briefings for builders.',
     benefits: ['Premium templates', 'Weekly briefings', 'Governance access'],
     badge: 'BUILDER',
+    accent: 'blue',
+    monogram: 'BT',
   },
 ]

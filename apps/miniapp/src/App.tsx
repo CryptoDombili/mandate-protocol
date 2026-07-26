@@ -8,8 +8,8 @@ import { plans, type Plan } from './data'
 import { env, hasDeployment } from './env'
 
 const activeMemberships = [
-  { name: 'Arcade Pro Pass', next: '18 Aug', amount: '5 mUSDC', state: 'Active' },
-  { name: 'Creator Inner Circle', next: '24 Aug', amount: '2 mUSDC', state: 'Paused' },
+  { name: 'Arcade Pro Pass', next: '18 Aug', amount: '5 mUSDC', state: 'Active', accent: 'violet' },
+  { name: 'Creator Inner Circle', next: '24 Aug', amount: '2 mUSDC', state: 'Paused', accent: 'coral' },
 ]
 
 export function App() {
@@ -32,8 +32,13 @@ export function App() {
 
   return (
     <div className="app-shell">
-      <div className="ambient ambient-one" />
-      <div className="ambient ambient-two" />
+      <div className="page-glow glow-one" />
+      <div className="page-glow glow-two" />
+
+      <div className="announcement">
+        <span>Minato preview</span>
+        User-controlled memberships for Startale Mini Apps.
+      </div>
 
       <header className="topbar">
         <Logo />
@@ -44,7 +49,7 @@ export function App() {
           <button className={tab === 'developers' ? 'active' : ''} onClick={() => setTab('developers')}>Developers</button>
         </nav>
         <button className="wallet-button" onClick={isConnected ? () => disconnect() : connectWallet} disabled={isPending}>
-          <span className="wallet-light" />
+          <span className="wallet-avatar">S</span>
           {isPending ? 'Connecting…' : isConnected ? shortAddress : 'Connect Startale'}
         </button>
       </header>
@@ -54,76 +59,93 @@ export function App() {
           <>
             <section className="hero">
               <div className="hero-copy">
-                <span className="eyebrow"><i /> BUILT FOR STARTALE MINI APPS</span>
-                <h1>Memberships without unlimited wallet access.</h1>
+                <span className="eyebrow">MEMBERSHIP INFRASTRUCTURE</span>
+                <h1>Recurring access, with rules users can see.</h1>
                 <p>
-                  Mandate gives games, creators and communities a safe way to sell recurring access while users keep hard limits on every payment.
+                  Games, creators and communities can sell memberships without asking users for unlimited wallet approvals.
                 </p>
                 <div className="hero-actions">
                   <button className="primary-button" onClick={() => document.getElementById('plans')?.scrollIntoView({ behavior: 'smooth' })}>
-                    Explore passes
+                    Explore memberships
                   </button>
-                  <button className="secondary-button" onClick={() => setTab('developers')}>Read the protocol</button>
+                  <button className="secondary-button" onClick={() => setTab('developers')}>View developer kit</button>
                 </div>
-                <div className="trust-row">
-                  <span>NO UNLIMITED APPROVALS</span>
-                  <span>USER-CONTROLLED CAPS</span>
-                  <span>MINATO TESTNET</span>
+                <div className="proof-row">
+                  <span><b>01</b> Exact spend caps</span>
+                  <span><b>02</b> Cancel at any time</span>
+                  <span><b>03</b> Unused funds stay withdrawable</span>
                 </div>
               </div>
 
-              <div className="hero-panel">
-                <div className="hero-panel-head">
-                  <span>PAYMENT MANDATE</span>
-                  <span className="verified">VERIFIED TERMS</span>
+              <div className="product-preview" aria-label="Membership dashboard preview">
+                <div className="preview-head">
+                  <div>
+                    <span>Monthly access</span>
+                    <strong>Your memberships</strong>
+                  </div>
+                  <span className="count-pill">3 active</span>
                 </div>
-                <div className="mandate-orbit">
-                  <div className="orbit orbit-a" />
-                  <div className="orbit orbit-b" />
-                  <div className="core-mark"><Logo compact /></div>
+
+                <div className="membership-stack">
+                  <article className="mini-membership violet-card">
+                    <div className="mini-card-head"><span>ARCADE PRO</span><i>AP</i></div>
+                    <strong>5 mUSDC</strong>
+                    <small>Renews 18 Aug · Cap locked</small>
+                  </article>
+                  <article className="mini-membership coral-card">
+                    <div className="mini-card-head"><span>CREATOR CLUB</span><i>CI</i></div>
+                    <strong>2 mUSDC</strong>
+                    <small>Renews 24 Aug · Cancel anytime</small>
+                  </article>
+                  <article className="mini-membership blue-card">
+                    <div className="mini-card-head"><span>BUILDER TOOLKIT</span><i>BT</i></div>
+                    <strong>3 mUSDC</strong>
+                    <small>Renews 28 Aug · Terms verified</small>
+                  </article>
                 </div>
-                <div className="term-list">
-                  <div><span>Merchant</span><strong>Only registered app</strong></div>
-                  <div><span>Token</span><strong>mUSDC only</strong></div>
-                  <div><span>Limit</span><strong>5 per 30 days</strong></div>
-                  <div><span>Control</span><strong>Pause or cancel</strong></div>
+
+                <div className="spend-panel">
+                  <div className="spend-title"><span>Monthly commitment</span><strong>10 / 20 mUSDC</strong></div>
+                  <div className="spend-track"><span /></div>
+                  <div className="spend-foot"><span>Hard cap</span><strong>50% available</strong></div>
                 </div>
               </div>
             </section>
 
-            <section className="metric-strip">
-              <div><strong>0</strong><span>admin fund access</span></div>
-              <div><strong>1</strong><span>clear payment rule</span></div>
-              <div><strong>100%</strong><span>withdrawable remainder</span></div>
-              <div><strong>1946</strong><span>Soneium Minato</span></div>
+            <section className="metric-grid">
+              <article><span className="metric-icon">↗</span><strong>0</strong><p>admin access to user funds</p></article>
+              <article><span className="metric-icon">◎</span><strong>1</strong><p>transparent rule per membership</p></article>
+              <article><span className="metric-icon">↩</span><strong>100%</strong><p>unused balance remains withdrawable</p></article>
+              <article><span className="metric-icon">S</span><strong>1946</strong><p>Soneium Minato chain ID</p></article>
             </section>
 
             <section className="section" id="plans">
               <div className="section-head">
                 <div>
                   <span className="eyebrow">DISCOVER</span>
-                  <h2>Passes built on bounded permissions</h2>
+                  <h2>Memberships with visible limits</h2>
                 </div>
-                <p>Every plan states the merchant, token, interval, maximum number of charges and lifetime cap before approval.</p>
+                <p>Every plan exposes the merchant, token, price, interval, charge count and lifetime cap before approval.</p>
               </div>
               <div className="plan-grid">
                 {plans.map((plan) => <PlanCard key={plan.id} plan={plan} onSelect={setSelectedPlan} />)}
               </div>
             </section>
 
-            <section className="section protocol-section">
-              <div>
-                <span className="eyebrow">PROTOCOL STATUS</span>
-                <h2>{hasDeployment ? 'Connected to the Minato deployment.' : 'Ready for the first Minato deployment.'}</h2>
+            <section className="protocol-section">
+              <div className="protocol-copy">
+                <span className="dark-eyebrow">PROTOCOL STATUS</span>
+                <h2>{hasDeployment ? 'Connected to Minato.' : 'Built for the first Minato deployment.'}</h2>
                 <p>
-                  The interface is currently running in {env.demoMode ? 'demo' : 'onchain'} mode. Deploy the included contracts and paste the addresses into the environment file to activate real testnet actions.
+                  The interface is running in {env.demoMode ? 'demo' : 'onchain'} mode. Deploy the included contracts and add their addresses to activate real testnet actions.
                 </p>
+                <button className="protocol-button" onClick={() => setTab('developers')}>Explore the architecture</button>
               </div>
-              <div className="status-card">
+              <div className="status-board">
                 <div><span>Protocol</span><strong>{hasDeployment ? `${env.protocolAddress.slice(0, 8)}…` : 'Not deployed'}</strong></div>
                 <div><span>Token</span><strong>{hasDeployment ? `${env.tokenAddress.slice(0, 8)}…` : 'Mock USDC pending'}</strong></div>
                 <div><span>Network</span><strong>Soneium Minato</strong></div>
-                <div><span>Safety state</span><strong className="green">Withdrawals always open</strong></div>
+                <div><span>Exit guarantee</span><strong className="mint">Withdrawals always open</strong></div>
               </div>
             </section>
           </>
@@ -133,13 +155,14 @@ export function App() {
           <section className="section inner-page">
             <span className="eyebrow">YOUR CONTROL CENTER</span>
             <h1>My passes</h1>
-            <p className="page-lead">See upcoming charges, pause access, cancel future payments, or withdraw unused vault funds.</p>
+            <p className="page-lead">Review upcoming charges, pause access, cancel future payments or withdraw unused vault funds.</p>
             <div className="membership-list">
               {activeMemberships.map((membership) => (
-                <article key={membership.name}>
-                  <div><span className="status-dot">{membership.state.toUpperCase()}</span><h3>{membership.name}</h3></div>
-                  <div className="membership-meta"><span>Next: {membership.next}</span><strong>{membership.amount}</strong></div>
-                  <div className="membership-actions"><button>Pause</button><button>Cancel</button></div>
+                <article key={membership.name} className={`membership-row row-${membership.accent}`}>
+                  <span className="membership-badge">{membership.name.slice(0, 2).toUpperCase()}</span>
+                  <div><span className={`state-pill state-${membership.state.toLowerCase()}`}>{membership.state}</span><h3>{membership.name}</h3></div>
+                  <div className="membership-meta"><span>Next charge {membership.next}</span><strong>{membership.amount}</strong></div>
+                  <div className="membership-actions"><button>Pause</button><button className="danger-button">Cancel</button></div>
                 </article>
               ))}
             </div>
@@ -150,11 +173,11 @@ export function App() {
           <section className="section inner-page">
             <span className="eyebrow">MERCHANT STUDIO</span>
             <h1>Launch a plan with terms users can trust.</h1>
-            <p className="page-lead">Prices are immutable. To change terms, publish a new plan so existing members never receive a silent price increase.</p>
+            <p className="page-lead">Prices are immutable. Changing terms means publishing a new plan, so existing members never receive a silent price increase.</p>
             <div className="merchant-grid">
               <article><span>01</span><h3>Define the plan</h3><p>Choose token, amount, period, maximum charges and metadata.</p></article>
               <article><span>02</span><h3>Integrate access</h3><p>Check paid access through one read call or the TypeScript SDK.</p></article>
-              <article><span>03</span><h3>Receive payments</h3><p>Due charges are transferred directly to the registered merchant address.</p></article>
+              <article><span>03</span><h3>Receive payments</h3><p>Due charges move directly to the registered merchant address.</p></article>
             </div>
             <button className="primary-button">Open plan builder — next milestone</button>
           </section>
@@ -187,7 +210,7 @@ export function App() {
         <button className={tab === 'home' ? 'active' : ''} onClick={() => setTab('home')}>Discover</button>
         <button className={tab === 'passes' ? 'active' : ''} onClick={() => setTab('passes')}>Passes</button>
         <button className={tab === 'merchant' ? 'active' : ''} onClick={() => setTab('merchant')}>Merchant</button>
-        <button className={tab === 'developers' ? 'active' : ''} onClick={() => setTab('developers')}>Dev</button>
+        <button className={tab === 'developers' ? 'active' : ''} onClick={() => setTab('developers')}>Developers</button>
       </nav>
 
       {selectedPlan && <SubscribeSheet plan={selectedPlan} onClose={() => setSelectedPlan(null)} />}
