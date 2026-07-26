@@ -5,12 +5,18 @@ import { sendTransaction, waitForTransactionReceipt } from '@wagmi/core/actions'
 import { stringToHex } from 'viem'
 import { soneium } from 'viem/chains'
 
-const button = document.querySelector<HTMLButtonElement>('#run')
-const status = document.querySelector<HTMLDivElement>('#status')
+function requireElement<T extends Element>(selector: string): T {
+  const element = document.querySelector<T>(selector)
 
-if (!button || !status) {
-  throw new Error('Preview-check interface is incomplete.')
+  if (!element) {
+    throw new Error(`Preview-check interface is missing ${selector}.`)
+  }
+
+  return element
 }
+
+const button = requireElement<HTMLButtonElement>('#run')
+const status = requireElement<HTMLDivElement>('#status')
 
 const config = createConfig({
   chains: [soneium],
@@ -27,9 +33,15 @@ function setStatus(message: string, kind: 'info' | 'success' | 'error' = 'info')
 
 function getErrorMessage(error: unknown): string {
   if (error && typeof error === 'object') {
-    if ('shortMessage' in error && typeof error.shortMessage === 'string') return error.shortMessage
-    if ('message' in error && typeof error.message === 'string') return error.message
+    if ('shortMessage' in error && typeof error.shortMessage === 'string') {
+      return error.shortMessage
+    }
+
+    if ('message' in error && typeof error.message === 'string') {
+      return error.message
+    }
   }
+
   return 'The transaction check failed.'
 }
 
@@ -41,16 +53,26 @@ async function runCheck() {
     await sdk.actions.ready().catch(() => undefined)
 
     let account = getAccount(config)
+
     if (!account.isConnected || !account.address) {
       const connector = config.connectors[0]
-      if (!connector) throw new Error('Startale connector is unavailable.')
+
+      if (!connector) {
+        throw new Error('Startale connector is unavailable.')
+      }
+
       await connect(config, { connector, chainId: soneium.id })
       account = getAccount(config)
     }
 
-    if (!account.address) throw new Error('Startale account address was not returned.')
+    if (!account.address) {
+      throw new Error('Startale account address was not returned.')
+    }
+
     if (account.chainId !== soneium.id) {
-      throw new Error(`Wrong host network. Expected Soneium Mainnet (1868), received ${account.chainId ?? 'unknown'}.`)
+      throw new Error(
+        `Wrong host network. Expected Soneium Mainnet (1868), received ${account.chainId ?? 'unknown'}.`,
+      )
     }
 
     setStatus('Waiting for Startale approval. Confirm only if the value is 0 ETH.')
@@ -70,8 +92,11 @@ async function runCheck() {
     })
 
     const explorer = `https://soneium.blockscout.com/tx/${receipt.transactionHash}`
+
     status.dataset.kind = 'success'
-    status.innerHTML = `Transaction signing passed. <a href="${explorer}" target="_blank" rel="noreferrer">Open receipt</a>`
+    status.innerHTML =
+      `Transaction signing passed. ` +
+      `<a href="${explorer}" target="_blank" rel="noreferrer">Open receipt</a>`
     button.textContent = 'Transaction check passed'
   } catch (error) {
     setStatus(getErrorMessage(error), 'error')
