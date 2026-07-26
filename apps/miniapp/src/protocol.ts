@@ -52,6 +52,36 @@ export const protocolReadAbi = [
   },
   {
     type: 'function',
+    name: 'planCount',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'createPlan',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'token', type: 'address' },
+      { name: 'amountPerPeriod', type: 'uint128' },
+      { name: 'periodSeconds', type: 'uint64' },
+      { name: 'merchantChargeLimit', type: 'uint32' },
+      { name: 'metadataURI', type: 'string' },
+    ],
+    outputs: [{ name: 'planId', type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'setPlanEnabled',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'planId', type: 'uint256' },
+      { name: 'enabled', type: 'bool' },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
     name: 'charge',
     stateMutability: 'nonpayable',
     inputs: [{ name: 'subscriptionId', type: 'uint256' }],

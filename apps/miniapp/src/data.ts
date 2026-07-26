@@ -9,6 +9,9 @@ export type Plan = {
   badge: string
   accent: 'violet' | 'coral' | 'blue'
   monogram: string
+  maxCharges?: number
+  merchantAddress?: string
+  enabled?: boolean
 }
 
 export const plans: Plan[] = [

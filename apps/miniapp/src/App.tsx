@@ -5,7 +5,9 @@ import { useAccount, useConnect, useDisconnect, usePublicClient, useWriteContrac
 import { Logo } from './components/Logo'
 import { PlanCard } from './components/PlanCard'
 import { SubscribeSheet } from './components/SubscribeSheet'
+import { MerchantPlanBuilder } from './components/MerchantPlanBuilder'
 import { plans, type Plan } from './data'
+import { usePlanDirectory } from './planDirectory'
 import { env, hasDeployment } from './env'
 import {
   chargedEvent,
@@ -70,6 +72,7 @@ export function App() {
   const { disconnect } = useDisconnect()
   const publicClient = usePublicClient()
   const { writeContractAsync } = useWriteContract()
+  const { directoryPlans, refreshPlanDirectory } = usePlanDirectory()
   const [memberships, setMemberships] = useState<LiveMembership[]>([])
   const [passesLoading, setPassesLoading] = useState(false)
   const [passesMessage, setPassesMessage] = useState('')
@@ -575,7 +578,7 @@ export function App() {
                 <p>Every plan exposes the merchant, token, price, interval, charge count and lifetime cap before approval.</p>
               </div>
               <div className="plan-grid">
-                {plans.map((plan) => <PlanCard key={plan.id} plan={plan} onSelect={setSelectedPlan} />)}
+                {(directoryPlans.length > 0 ? directoryPlans : plans).map((plan) => <PlanCard key={plan.id} plan={plan} onSelect={setSelectedPlan} />)}
               </div>
             </section>
             <section className="protocol-section">
@@ -693,6 +696,11 @@ export function App() {
               <article><span>02</span><h3>Permissionless keeper</h3><p>Any account may trigger a due charge, but cannot alter its amount or destination.</p></article>
               <article><span>03</span><h3>Direct settlement</h3><p>Successful charges move from the protected vault to the registered merchant.</p></article>
             </div>
+
+            <MerchantPlanBuilder
+              connectWallet={connectWallet}
+              onPlanChanged={refreshPlanDirectory}
+            />
 
             <div className="merchant-console">
               <div className="merchant-console-head">

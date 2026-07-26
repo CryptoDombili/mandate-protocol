@@ -331,3 +331,55 @@ footer { display: flex; justify-content: space-between; align-items: center; gap
   .mobile-nav { grid-template-columns: repeat(5, 1fr); }
   .mobile-nav button { font-size: 9px; }
 }
+
+/* v0.6 — live merchant plan builder and onchain directory */
+.plan-builder-shell { margin-top: 54px; padding: 30px; border: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 97%, var(--violet-soft)); border-radius: 28px; box-shadow: var(--shadow-sm); }
+.plan-builder-head { display: grid; grid-template-columns: 1fr minmax(230px, .34fr); align-items: end; gap: 34px; }
+.plan-builder-head h2 { margin: 12px 0 10px; font-size: clamp(32px, 4.5vw, 52px); }
+.plan-builder-head p { max-width: 760px; margin: 0; color: var(--ink-soft); line-height: 1.65; }
+.builder-network-card { display: grid; gap: 7px; padding: 18px; border: 1px solid #dcd8ff; background: var(--violet-soft); border-radius: 18px; }
+.builder-network-card span, .builder-network-card small { color: #6e6991; }
+.builder-network-card strong { font-size: 19px; }
+.plan-builder-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 30px; }
+.plan-builder-grid label { display: grid; align-content: start; gap: 8px; color: var(--ink-soft); font-size: 12px; font-weight: 750; }
+.plan-builder-grid input, .plan-builder-grid select, .plan-builder-grid textarea { width: 100%; min-height: 48px; border: 1px solid var(--line-strong); background: var(--paper); color: var(--ink); border-radius: 13px; padding: 12px 14px; outline: none; transition: border-color .2s, box-shadow .2s; }
+.plan-builder-grid textarea { min-height: 105px; resize: vertical; line-height: 1.55; }
+.plan-builder-grid input:focus, .plan-builder-grid select:focus, .plan-builder-grid textarea:focus { border-color: #aaa3ff; box-shadow: 0 0 0 4px rgba(99,91,255,.1); }
+.builder-wide-field { grid-column: 1 / -1; }
+.input-with-suffix { display: grid; grid-template-columns: 1fr auto; align-items: center; border: 1px solid var(--line-strong); background: var(--paper); border-radius: 13px; overflow: hidden; }
+.input-with-suffix input { border: 0; border-radius: 0; }
+.input-with-suffix b { padding: 0 14px; color: var(--violet); font-size: 11px; }
+.builder-review-bar { display: grid; grid-template-columns: repeat(3, 1fr) auto; align-items: center; gap: 18px; margin-top: 20px; padding: 18px; border: 1px solid var(--line); background: var(--paper); border-radius: 18px; }
+.builder-review-bar > div { display: grid; gap: 5px; min-width: 0; }
+.builder-review-bar span { color: var(--ink-soft); font-size: 11px; }
+.builder-review-bar strong { overflow-wrap: anywhere; }
+.merchant-plan-list { margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--line); }
+.merchant-plan-list-head { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 16px; }
+.merchant-plan-list-head h3 { margin: 8px 0 0; font-size: 26px; }
+.builder-empty-plan { padding: 22px; border: 1px dashed var(--line-strong); color: var(--ink-soft); border-radius: 16px; }
+.merchant-plan-row { display: grid; grid-template-columns: auto minmax(170px, 1.2fr) repeat(3, minmax(100px, .65fr)) auto; align-items: center; gap: 18px; margin-top: 12px; padding: 16px; border: 1px solid var(--line); background: var(--paper); border-radius: 17px; }
+.merchant-plan-row > div { display: grid; gap: 4px; }
+.merchant-plan-row span, .merchant-plan-row small { color: var(--ink-soft); font-size: 11px; }
+.plan-status-dot { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 5px rgba(120,128,155,.08); }
+.plan-status-dot.enabled { background: var(--mint); box-shadow: 0 0 0 5px rgba(30,169,133,.12); }
+.plan-status-dot.disabled { background: #9aa0b1; }
+.danger-button { border: 1px solid #f0c7bd; background: var(--coral-soft); color: #c85843; padding: 11px 14px; border-radius: 11px; font-weight: 800; white-space: nowrap; }
+
+@media (max-width: 1050px) {
+  .plan-builder-head { grid-template-columns: 1fr; }
+  .builder-review-bar { grid-template-columns: 1fr 1fr; }
+  .merchant-plan-row { grid-template-columns: auto 1fr 1fr; }
+  .merchant-plan-row > div:nth-of-type(3), .merchant-plan-row > div:nth-of-type(4), .merchant-plan-row button { grid-column: 2 / -1; }
+  .merchant-plan-row button { width: max-content; }
+}
+
+@media (max-width: 650px) {
+  .plan-builder-shell { padding: 20px; }
+  .plan-builder-grid, .builder-review-bar { grid-template-columns: 1fr; }
+  .builder-wide-field { grid-column: 1; }
+  .builder-review-bar .primary-button { width: 100%; }
+  .merchant-plan-list-head { align-items: flex-start; flex-direction: column; }
+  .merchant-plan-row { grid-template-columns: auto 1fr; }
+  .merchant-plan-row > div, .merchant-plan-row > div:nth-of-type(3), .merchant-plan-row > div:nth-of-type(4), .merchant-plan-row button { grid-column: 2; }
+  .merchant-plan-row button { width: 100%; }
+}

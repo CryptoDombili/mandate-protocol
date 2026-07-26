@@ -28,7 +28,7 @@ export function SubscribeSheet({
   const [step, setStep] = useState<'review' | 'approved' | 'deposited' | 'created'>('review')
   const [message, setMessage] = useState('')
 
-  const chargeLimit = 3
+  const chargeLimit = plan.maxCharges ?? 3
   const amountPerCharge = useMemo(() => parseUnits(String(plan.price), 6), [plan.price])
   const total = amountPerCharge * BigInt(chargeLimit)
 
