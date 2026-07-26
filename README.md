@@ -12,13 +12,22 @@ Mandate is an open-source protocol, Mini App and typed developer SDK for members
 - Test token label: **Test USDSC** — mock token with no monetary value
 - Production target: **Startale USD (USDSC)**
 
-## v0.7 modules
+## v0.8 modules
 
 - `apps/miniapp`: Startale-compatible Vite + React Mini App and standalone web application.
 - `packages/contracts`: non-upgradeable Solidity protocol, mock test token, deployment scripts and tests.
-- `packages/sdk`: typed viem client for plans, subscriptions, access decisions, vaults, settlements and exits.
+- `packages/sdk`: typed viem client for plans, subscriptions, access decisions, vaults, settlements, exits and friendly failure decoding.
 - `examples/game-pass`: portable paid-access gate for another Mini App.
 - `docs/SDK.md`: integration guide and API surface.
+
+
+## v0.8 hardening
+
+- Persistent Soneium Minato network guard and one-click switch.
+- Preflight checks for plan state, token balance, vault balance, duplicate memberships and settlement timing.
+- Stable user-facing messages for wallet rejection, RPC failures, ERC-20 failures and MandateProtocol custom errors.
+- Safe interface recovery screen for unexpected rendering failures.
+- Existing Minato contracts and addresses remain unchanged.
 
 ## Product model
 

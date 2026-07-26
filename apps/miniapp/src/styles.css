@@ -385,6 +385,8 @@ footer { display: flex; justify-content: space-between; align-items: center; gap
 }
 
 /* v0.7 — developer SDK, live access gate and integration workbench */
+
+/* v0.8 — Minato network guard, recovery and failure-safe UX */
 .sdk-status-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 38px; }
 .sdk-status-grid article { min-height: 138px; display: grid; align-content: center; gap: 7px; padding: 21px; border: 1px solid var(--line); background: var(--paper); border-radius: 20px; box-shadow: var(--shadow-sm); }
 .sdk-status-grid span, .sdk-status-grid small { color: var(--ink-soft); }
@@ -430,4 +432,147 @@ footer { display: flex; justify-content: space-between; align-items: center; gap
   .developer-check-row { grid-template-columns: 1fr; }
   .developer-check-row .primary-button { width: 100%; }
   .live-access-gate { padding: 20px; }
+}
+
+/* v0.8 — failure-safe network and transaction UX */
+.network-banner,
+.connection-notice {
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto 18px;
+  border-radius: 16px;
+}
+
+.network-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 15px 17px;
+  border: 1px solid #efc0b5;
+  background: color-mix(in srgb, var(--coral-soft) 88%, var(--paper));
+  color: #9d4333;
+  box-shadow: var(--shadow-sm);
+}
+
+.network-banner > div {
+  display: grid;
+  gap: 3px;
+}
+
+.network-banner strong { font-size: 14px; }
+.network-banner span { font-size: 12px; line-height: 1.45; }
+.network-banner small { margin-top: 4px; font-size: 11px; font-weight: 700; }
+.network-banner button {
+  flex: 0 0 auto;
+  border: 1px solid #e0a294;
+  background: var(--paper);
+  color: #a44938;
+  padding: 10px 13px;
+  border-radius: 11px;
+  font-weight: 850;
+}
+
+.connection-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 13px 15px;
+  border: 1px solid #d9d5ff;
+  background: color-mix(in srgb, var(--violet-soft) 88%, var(--paper));
+  color: #4e47ca;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.connection-notice button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(99, 91, 255, .1);
+  color: currentColor;
+  font-size: 18px;
+}
+
+.transaction-message,
+.passes-message,
+.developer-check-message {
+  overflow-wrap: anywhere;
+}
+
+.fatal-error-shell {
+  min-height: 100vh;
+  width: min(760px, calc(100% - 36px));
+  display: grid;
+  place-items: center;
+  margin: 0 auto;
+  padding: 48px 0;
+}
+
+.fatal-error-card {
+  width: 100%;
+  padding: clamp(28px, 6vw, 56px);
+  border: 1px solid var(--line);
+  background: var(--paper);
+  border-radius: 28px;
+  box-shadow: var(--shadow-lg);
+}
+
+.fatal-error-card > span {
+  color: var(--violet);
+  font-size: 10px;
+  letter-spacing: .16em;
+  font-weight: 900;
+}
+
+.fatal-error-card h1 {
+  margin: 14px 0 15px;
+  font-size: clamp(34px, 7vw, 58px);
+  line-height: 1;
+  letter-spacing: -.05em;
+}
+
+.fatal-error-card p {
+  max-width: 590px;
+  color: var(--ink-soft);
+  line-height: 1.7;
+}
+
+.fatal-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 24px 0;
+}
+
+.fatal-error-actions button,
+.fatal-error-actions a {
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 15px;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.fatal-error-actions button {
+  background: linear-gradient(135deg, var(--violet), var(--lavender));
+  color: #fff;
+}
+
+.fatal-error-actions a {
+  border: 1px solid var(--line);
+  background: var(--wash);
+  color: var(--ink);
+}
+
+.fatal-error-card small { color: var(--ink-soft); }
+
+@media (max-width: 650px) {
+  .network-banner { align-items: stretch; flex-direction: column; }
+  .network-banner button { width: 100%; }
+  .connection-notice { align-items: flex-start; }
 }

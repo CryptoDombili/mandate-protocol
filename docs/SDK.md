@@ -83,3 +83,23 @@ The same calls work with a normal browser wallet or the Startale host wallet bec
 ## Access semantics
 
 `checkAccess` returns a typed decision and never treats a merely-created subscription as paid access. A successful charge sets `paidUntil`; access remains valid through that timestamp even if future charges are paused or cancelled.
+
+## Failure-safe UX
+
+Use the SDK error helpers around every write:
+
+```ts
+import { describeMandateError, formatMandateError } from '@mandate/sdk'
+
+try {
+  await mandate.charge(subscriptionId)
+} catch (error) {
+  const detail = describeMandateError(error)
+  showToast(detail.title, detail.message)
+
+  // Compact text is also available:
+  console.log(formatMandateError(error))
+}
+```
+
+`describeMandateError` returns a stable code, title, user-facing message, retryability flag and optional technical diagnostics. The contracts remain the source of truth; this layer only makes rejected transactions understandable.

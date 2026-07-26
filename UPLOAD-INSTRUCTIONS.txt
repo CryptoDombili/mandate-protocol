@@ -1,0 +1,14 @@
+MANDATE v0.8 — HARDENING & FAILURE UX
+
+Upload these items to the ROOT of the existing mandate-protocol repository:
+- apps
+- packages
+- docs
+- package.json
+- README.md
+- BUILD-STATUS.md
+
+Commit message:
+Add failure-safe UX and Minato hardening
+
+Do not delete or redeploy the existing contracts. GitHub CI and Cloudflare deploy automatically after the commit.

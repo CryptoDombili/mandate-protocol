@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { formatUnits, parseUnits } from 'viem'
+import { formatMandateError } from '@mandate/sdk'
 import { useAccount, usePublicClient, useWriteContract } from 'wagmi'
 import { env, hasDeployment } from '../env'
 import { protocolReadAbi, type PlanTuple } from '../protocol'
 import { TEST_TOKEN_LABEL, TEST_TOKEN_NOTE } from '../token'
+import { useMinatoNetwork } from '../minato'
 
 const intervalOptions = [
   { label: '7 days', seconds: 7 * 86_400 },
@@ -18,13 +20,6 @@ interface MerchantPlan {
   chargeLimit: number
   enabled: boolean
   metadataURI: string
-}
-
-function getErrorMessage(error: unknown): string {
-  if (error && typeof error === 'object' && 'shortMessage' in error) {
-    return String((error as { shortMessage?: unknown }).shortMessage ?? 'Transaction failed.')
-  }
-  return error instanceof Error ? error.message : 'Transaction failed.'
 }
 
 function formatPrice(amount: bigint): string {
@@ -63,6 +58,7 @@ export function MerchantPlanBuilder({
   const [merchantPlans, setMerchantPlans] = useState<MerchantPlan[]>([])
   const [plansLoading, setPlansLoading] = useState(false)
   const [toggleId, setToggleId] = useState<bigint | null>(null)
+  const { isCorrectChain, switchToMinato } = useMinatoNetwork()
 
   const lifetimeCap = useMemo(() => {
     const numericPrice = Number(price)
@@ -113,11 +109,19 @@ export function MerchantPlanBuilder({
     void refreshMerchantPlans()
   }, [refreshMerchantPlans])
 
+  async function ensureMinato(): Promise<boolean> {
+    if (isCorrectChain) return true
+    const result = await switchToMinato()
+    if (!result.ok) setMessage(result.message ?? 'Switch your wallet to Soneium Minato and try again.')
+    return result.ok
+  }
+
   async function createPlan() {
     if (!isConnected) {
       await connectWallet()
       return
     }
+    if (!(await ensureMinato())) return
     if (!publicClient || !hasDeployment || env.demoMode) {
       setMessage('The live Minato contracts are not connected.')
       return
@@ -167,7 +171,7 @@ export function MerchantPlanBuilder({
       setDescription('')
       await Promise.all([refreshMerchantPlans(), onPlanChanged()])
     } catch (error) {
-      setMessage(getErrorMessage(error))
+      setMessage(formatMandateError(error))
     } finally {
       setBusy(false)
     }
@@ -175,8 +179,9 @@ export function MerchantPlanBuilder({
 
   async function togglePlan(plan: MerchantPlan) {
     if (!publicClient) return
-    setToggleId(plan.id)
     setMessage('')
+    if (!(await ensureMinato())) return
+    setToggleId(plan.id)
     try {
       const hash = await writeContractAsync({
         address: env.protocolAddress,
@@ -188,7 +193,7 @@ export function MerchantPlanBuilder({
       setMessage(plan.enabled ? 'Plan paused. New memberships and settlements are disabled.' : 'Plan re-enabled on Minato.')
       await Promise.all([refreshMerchantPlans(), onPlanChanged()])
     } catch (error) {
-      setMessage(getErrorMessage(error))
+      setMessage(formatMandateError(error))
     } finally {
       setToggleId(null)
     }

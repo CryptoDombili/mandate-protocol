@@ -1,13 +1,13 @@
 {
   "name": "@mandate/example-game-pass",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mandate/sdk": "0.7.0",
+    "@mandate/sdk": "0.8.0",
     "viem": "^2.33.0"
   },
   "devDependencies": {

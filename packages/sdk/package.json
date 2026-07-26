@@ -1,6 +1,6 @@
 {
   "name": "@mandate/sdk",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": false,
   "description": "Typed access and bounded recurring-payment client for Mandate Protocol.",
   "license": "MIT",
@@ -13,7 +13,9 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "sideEffects": false,
   "repository": {
     "type": "git",

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { sdk } from '@farcaster/miniapp-sdk'
 import {
   MandateClient,
+  formatMandateError,
   mandateMinatoDeployment,
   type AccessDecision,
   type MandateClientConfig,
@@ -12,8 +13,10 @@ import { Logo } from './components/Logo'
 import { PlanCard } from './components/PlanCard'
 import { SubscribeSheet } from './components/SubscribeSheet'
 import { MerchantPlanBuilder } from './components/MerchantPlanBuilder'
+import { NetworkBanner } from './components/NetworkBanner'
 import { plans, type Plan } from './data'
 import { usePlanDirectory } from './planDirectory'
+import { useMinatoNetwork } from './minato'
 import { env, hasDeployment } from './env'
 import {
   chargedEvent,
@@ -50,12 +53,7 @@ interface LiveMembership {
   accent: Plan['accent']
 }
 
-function getErrorMessage(error: unknown): string {
-  if (error && typeof error === 'object' && 'shortMessage' in error) {
-    return String((error as { shortMessage?: unknown }).shortMessage ?? 'Transaction failed.')
-  }
-  return error instanceof Error ? error.message : 'Transaction failed.'
-}
+const getErrorMessage = formatMandateError
 
 function formatToken(amount: bigint): string {
   return Number(formatUnits(amount, 6)).toLocaleString('en-US', { maximumFractionDigits: 2 })
@@ -121,6 +119,8 @@ export function App() {
   const [developerChecking, setDeveloperChecking] = useState(false)
   const [developerMessage, setDeveloperMessage] = useState('')
   const [copiedDeveloperSnippet, setCopiedDeveloperSnippet] = useState('')
+  const [connectionMessage, setConnectionMessage] = useState('')
+  const { isCorrectChain, switchToMinato } = useMinatoNetwork()
 
   useEffect(() => {
     sdk.actions.ready().catch(() => undefined)
@@ -130,6 +130,7 @@ export function App() {
   const shortAddress = address ? `${address.slice(0, 6)}…${address.slice(-4)}` : ''
 
   async function connectWallet() {
+    setConnectionMessage('')
     const startale = connectors.find((connector) => {
       const label = `${connector.id} ${connector.name} ${connector.type}`.toLowerCase()
       return label.includes('startale')
@@ -146,10 +147,10 @@ export function App() {
     const connector = isEmbedded ? (startale ?? browserWallet) : browserWallet
 
     if (!connector) {
-      window.alert(
+      setConnectionMessage(
         isEmbedded
-          ? 'Startale host wallet could not be detected. Open this page through the Startale Mini App preview.'
-          : 'MetaMask could not be detected. Please unlock the MetaMask extension and try again.',
+          ? 'Startale host wallet could not be detected. Open Mandate through the Startale Mini App preview.'
+          : 'MetaMask could not be detected. Unlock the extension and try again.',
       )
       return
     }
@@ -157,10 +158,24 @@ export function App() {
     try {
       await connectAsync({ connector, chainId: 1946 })
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Wallet connection failed.'
       console.error('Wallet connection failed:', error)
-      window.alert(message)
+      setConnectionMessage(getErrorMessage(error))
     }
+  }
+
+  async function ensureWriteNetwork(setMessage: (message: string) => void): Promise<boolean> {
+    if (!isConnected) {
+      setMessage('Connect your wallet first.')
+      return false
+    }
+    if (isCorrectChain) return true
+
+    const result = await switchToMinato()
+    if (!result.ok) {
+      setMessage(result.message ?? 'Switch your wallet to Soneium Minato and try again.')
+      return false
+    }
+    return true
   }
 
   async function runDeveloperAccessCheck() {
@@ -240,7 +255,7 @@ export function App() {
       setWalletTokenBalance(tokenBalance)
       setVaultTokenBalance(vaultBalance)
 
-      const subscriptionIds = [...new Set(logs.map((log) => log.args.subscriptionId.toString()))].map(BigInt)
+      const subscriptionIds = [...new Set(logs.map((log) => log.args.subscriptionId.toString()))].map((value) => BigInt(String(value)))
       const liveMemberships = await Promise.all(
         subscriptionIds.map(async (subscriptionId) => {
           const subscription = (await publicClient.readContract({
@@ -287,8 +302,21 @@ export function App() {
 
   async function runMembershipAction(membership: LiveMembership, action: 'pause' | 'resume' | 'cancel') {
     if (!publicClient) return
-    setActionId(membership.id)
     setPassesMessage('')
+    if (!(await ensureWriteNetwork(setPassesMessage))) return
+    if (action === 'pause' && membership.status !== 1) {
+      setPassesMessage('Only an active membership can be paused.')
+      return
+    }
+    if (action === 'resume' && membership.status !== 2) {
+      setPassesMessage('Only a paused membership can be resumed.')
+      return
+    }
+    if (action === 'cancel' && ![1, 2].includes(membership.status)) {
+      setPassesMessage('This membership already has no future charges.')
+      return
+    }
+    setActionId(membership.id)
     try {
       const functionName =
         action === 'pause'
@@ -319,9 +347,14 @@ export function App() {
   }
 
   async function withdrawVault() {
-    if (!publicClient || vaultTokenBalance === 0n) return
-    setActionId(-1n)
+    if (!publicClient) return
     setPassesMessage('')
+    if (!(await ensureWriteNetwork(setPassesMessage))) return
+    if (vaultTokenBalance === 0n) {
+      setPassesMessage('There is no unused vault balance to withdraw.')
+      return
+    }
+    setActionId(-1n)
     try {
       const hash = await writeContractAsync({
         address: env.protocolAddress,
@@ -342,9 +375,36 @@ export function App() {
 
   async function chargeMembership(membership: LiveMembership) {
     if (!publicClient) return
-    setMerchantActionId(membership.id)
     setMerchantMessage('')
+    if (!(await ensureWriteNetwork(setMerchantMessage))) return
+    if (membership.status !== 1) {
+      setMerchantMessage('Only an active membership can be charged.')
+      return
+    }
+    if (membership.nextChargeAt * 1000n > BigInt(Date.now())) {
+      setMerchantMessage(`Payment is not due yet. Next settlement: ${formatChargeTime(membership.nextChargeAt)}.`)
+      return
+    }
+    if (membership.charges >= membership.chargeLimit) {
+      setMerchantMessage('This membership has reached its maximum charge count.')
+      return
+    }
+    if (vaultTokenBalance < membership.amount) {
+      setMerchantMessage('Protected vault balance is too low for this payment.')
+      return
+    }
+    setMerchantActionId(membership.id)
     try {
+      const plan = (await publicClient.readContract({
+        address: env.protocolAddress,
+        abi: protocolReadAbi,
+        functionName: 'plans',
+        args: [membership.planId],
+      })) as PlanTuple
+      if (!plan[5]) {
+        setMerchantMessage('This plan is paused by its merchant, so settlement is disabled.')
+        return
+      }
       const hash = await writeContractAsync({
         address: env.protocolAddress,
         abi: protocolReadAbi,
@@ -497,7 +557,7 @@ export function App() {
         transactionHash: log.transactionHash,
       })
 
-      const uniqueBlocks = [...new Set(records.map((record) => record.blockNumber.toString()))].map(BigInt)
+      const uniqueBlocks = [...new Set(records.map((record) => record.blockNumber.toString()))].map((value) => BigInt(String(value)))
       const blocks = await Promise.all(uniqueBlocks.map((blockNumber) => publicClient.getBlock({ blockNumber })))
       const timestamps = new Map(blocks.map((block) => [block.number.toString(), block.timestamp]))
       setProofs(
@@ -578,6 +638,13 @@ export function App() {
                 : 'Connect MetaMask'}
         </button>
       </header>
+      <NetworkBanner />
+      {connectionMessage && (
+        <div className="connection-notice" role="status">
+          <span>{connectionMessage}</span>
+          <button type="button" onClick={() => setConnectionMessage('')} aria-label="Dismiss wallet message">×</button>
+        </div>
+      )}
       <main>
         {tab === 'home' && (
           <>
@@ -914,7 +981,7 @@ export function App() {
             <p className="page-lead">Use one typed SDK for membership plans, bounded payments, access decisions, merchant settlement and user-controlled exits.</p>
 
             <div className="sdk-status-grid">
-              <article><span>SDK</span><strong>@mandate/sdk v0.7</strong><small>Typed viem client</small></article>
+              <article><span>SDK</span><strong>@mandate/sdk v0.8</strong><small>Typed viem client</small></article>
               <article><span>Network</span><strong>{mandateMinatoDeployment.chainName}</strong><small>Chain ID {mandateMinatoDeployment.chainId}</small></article>
               <article><span>Protocol</span><strong>{mandateMinatoDeployment.protocolAddress.slice(0, 10)}…{mandateMinatoDeployment.protocolAddress.slice(-6)}</strong><small>Live testnet deployment</small></article>
               <article><span>Wallet surface</span><strong>Host + browser</strong><small>Startale or injected wallet</small></article>
@@ -962,6 +1029,7 @@ export function App() {
 
             <div className="developer-points">
               <article><strong>Typed access decisions</strong><p>Distinguish active paid access, an unpaid subscription, expiry, cancellation and subscriber mismatch.</p></article>
+              <article><strong>Failure-safe UX</strong><p>Wallet rejection, wrong network, low gas and protocol reverts map to stable user-facing messages.</p></article>
               <article><strong>Startale host ready</strong><p>The same write calls use the host wallet in a Mini App and an injected wallet on the standalone site.</p></article>
               <article><strong>No backend authority</strong><p>Plans, caps, paid periods and exits are enforced by MandateProtocol on Minato.</p></article>
             </div>
