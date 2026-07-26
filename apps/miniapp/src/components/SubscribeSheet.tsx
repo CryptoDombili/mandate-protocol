@@ -4,6 +4,7 @@ import { useAccount, usePublicClient, useWriteContract } from 'wagmi'
 import { erc20Abi, mandateProtocolAbi } from '@mandate/sdk'
 import type { Plan } from '../data'
 import { env, hasDeployment } from '../env'
+import { TEST_TOKEN_LABEL, TEST_TOKEN_NOTE } from '../token'
 
 function getErrorMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'shortMessage' in error) {
@@ -86,7 +87,7 @@ export function SubscribeSheet({
 
   const buttonLabel =
     step === 'review'
-      ? `Approve ${Number(total) / 1_000_000} mUSDC cap`
+      ? `Approve ${Number(total) / 1_000_000} ${TEST_TOKEN_LABEL} cap`
       : step === 'approved'
         ? 'Fund protected vault'
         : step === 'deposited'
@@ -105,15 +106,16 @@ export function SubscribeSheet({
 
         <div className="rule-grid">
           <div><span>Merchant</span><strong>{plan.merchant}</strong></div>
-          <div><span>Token</span><strong>mUSDC only</strong></div>
-          <div><span>Per period</span><strong>{plan.price} mUSDC</strong></div>
+          <div><span>Token</span><strong>{TEST_TOKEN_LABEL}</strong></div>
+          <div><span>Per period</span><strong>{plan.price} {TEST_TOKEN_LABEL}</strong></div>
           <div><span>Maximum charges</span><strong>{chargeLimit}</strong></div>
-          <div><span>Lifetime cap</span><strong>{Number(total) / 1_000_000} mUSDC</strong></div>
+          <div><span>Lifetime cap</span><strong>{Number(total) / 1_000_000} {TEST_TOKEN_LABEL}</strong></div>
           <div><span>Cancellation</span><strong>Any time</strong></div>
         </div>
 
         <div className="safety-note">
           The merchant never receives access to your main wallet. Only the amount placed in the Mandate vault can be charged.
+          <small>{TEST_TOKEN_NOTE}</small>
         </div>
 
         <div className="step-track">

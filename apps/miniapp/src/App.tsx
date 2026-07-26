@@ -1,12 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
 import { sdk } from '@farcaster/miniapp-sdk'
-import { formatUnits } from 'viem'
+import { formatUnits, type Hash } from 'viem'
 import { useAccount, useConnect, useDisconnect, usePublicClient, useWriteContract } from 'wagmi'
 import { Logo } from './components/Logo'
 import { PlanCard } from './components/PlanCard'
 import { SubscribeSheet } from './components/SubscribeSheet'
 import { plans, type Plan } from './data'
 import { env, hasDeployment } from './env'
+import {
+  chargedEvent,
+  depositedEvent,
+  refundedEvent,
+  subscriptionCancelledEvent,
+  subscriptionPausedEvent,
+  subscriptionResumedEvent,
+  withdrawnEvent,
+  type ProofRecord,
+} from './proof'
+import { PRODUCTION_TOKEN_NOTE, TEST_TOKEN_LABEL, TEST_TOKEN_NOTE } from './token'
 import {
   DEPLOYMENT_BLOCK,
   protocolReadAbi,
@@ -53,7 +64,7 @@ function formatChargeTime(timestamp: bigint): string {
 
 export function App() {
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null)
-  const [tab, setTab] = useState<'home' | 'passes' | 'merchant' | 'developers'>('home')
+  const [tab, setTab] = useState<'home' | 'passes' | 'merchant' | 'proofs' | 'developers'>('home')
   const { address, isConnected } = useAccount()
   const { connectors, connectAsync, isPending } = useConnect()
   const { disconnect } = useDisconnect()
@@ -67,6 +78,9 @@ export function App() {
   const [actionId, setActionId] = useState<bigint | null>(null)
   const [merchantActionId, setMerchantActionId] = useState<bigint | null>(null)
   const [merchantMessage, setMerchantMessage] = useState('')
+  const [proofs, setProofs] = useState<ProofRecord[]>([])
+  const [proofsLoading, setProofsLoading] = useState(false)
+  const [proofsMessage, setProofsMessage] = useState('')
 
   useEffect(() => {
     sdk.actions.ready().catch(() => undefined)
@@ -188,7 +202,7 @@ export function App() {
   }, [address, publicClient])
 
   useEffect(() => {
-    if (tab === 'passes' || tab === 'merchant') void refreshPasses()
+    if (tab === 'passes' || tab === 'merchant' || tab === 'proofs') void refreshPasses()
   }, [tab, refreshPasses])
 
   async function runMembershipAction(membership: LiveMembership, action: 'pause' | 'resume' | 'cancel') {
@@ -259,7 +273,7 @@ export function App() {
       })
       await publicClient.waitForTransactionReceipt({ hash })
       setMerchantMessage(
-        `${formatToken(membership.amount)} mUSDC settled for subscription #${membership.id.toString()}.`,
+        `${formatToken(membership.amount)} ${TEST_TOKEN_LABEL} settled for subscription #${membership.id.toString()}.`,
       )
       await refreshPasses()
     } catch (error) {
@@ -269,6 +283,192 @@ export function App() {
     }
   }
 
+  const refreshProofs = useCallback(async () => {
+    if (!address || !publicClient || !hasDeployment) {
+      setProofs([])
+      return
+    }
+
+    setProofsLoading(true)
+    setProofsMessage('')
+    try {
+      const [createdLogs, depositLogs, withdrawLogs, chargedLogs, pausedLogs, resumedLogs, cancelledLogs, refundedLogs] = await Promise.all([
+        publicClient.getLogs({
+          address: env.protocolAddress,
+          event: subscriptionCreatedEvent,
+          args: { subscriber: address },
+          fromBlock: DEPLOYMENT_BLOCK,
+          toBlock: 'latest',
+          strict: true,
+        }),
+        publicClient.getLogs({
+          address: env.protocolAddress,
+          event: depositedEvent,
+          args: { account: address, token: env.tokenAddress },
+          fromBlock: DEPLOYMENT_BLOCK,
+          toBlock: 'latest',
+          strict: true,
+        }),
+        publicClient.getLogs({
+          address: env.protocolAddress,
+          event: withdrawnEvent,
+          args: { account: address, token: env.tokenAddress },
+          fromBlock: DEPLOYMENT_BLOCK,
+          toBlock: 'latest',
+          strict: true,
+        }),
+        publicClient.getLogs({
+          address: env.protocolAddress,
+          event: chargedEvent,
+          args: { subscriber: address },
+          fromBlock: DEPLOYMENT_BLOCK,
+          toBlock: 'latest',
+          strict: true,
+        }),
+        publicClient.getLogs({ address: env.protocolAddress, event: subscriptionPausedEvent, fromBlock: DEPLOYMENT_BLOCK, toBlock: 'latest', strict: true }),
+        publicClient.getLogs({ address: env.protocolAddress, event: subscriptionResumedEvent, fromBlock: DEPLOYMENT_BLOCK, toBlock: 'latest', strict: true }),
+        publicClient.getLogs({ address: env.protocolAddress, event: subscriptionCancelledEvent, fromBlock: DEPLOYMENT_BLOCK, toBlock: 'latest', strict: true }),
+        publicClient.getLogs({
+          address: env.protocolAddress,
+          event: refundedEvent,
+          args: { subscriber: address },
+          fromBlock: DEPLOYMENT_BLOCK,
+          toBlock: 'latest',
+          strict: true,
+        }),
+      ])
+
+      const ownedIds = new Set(createdLogs.map((log) => log.args.subscriptionId.toString()))
+      const records: ProofRecord[] = []
+      const push = (record: ProofRecord) => records.push(record)
+
+      for (const log of depositLogs) push({
+        id: `deposit-${log.transactionHash}-${log.logIndex}`,
+        kind: 'Vault funded',
+        detail: 'Test funds moved from the connected wallet into the protected Mandate vault.',
+        amount: log.args.amount,
+        blockNumber: log.blockNumber,
+        logIndex: log.logIndex,
+        transactionHash: log.transactionHash,
+      })
+      for (const log of withdrawLogs) push({
+        id: `withdraw-${log.transactionHash}-${log.logIndex}`,
+        kind: 'Vault withdrawal',
+        detail: 'Unused test funds returned from the protected vault to the connected wallet.',
+        amount: log.args.amount,
+        blockNumber: log.blockNumber,
+        logIndex: log.logIndex,
+        transactionHash: log.transactionHash,
+      })
+      for (const log of createdLogs) push({
+        id: `created-${log.transactionHash}-${log.logIndex}`,
+        kind: 'Membership created',
+        detail: `Plan #${log.args.planId.toString()} created with ${log.args.chargeLimit.toString()} maximum charges.`,
+        subscriptionId: log.args.subscriptionId,
+        blockNumber: log.blockNumber,
+        logIndex: log.logIndex,
+        transactionHash: log.transactionHash,
+      })
+      for (const log of chargedLogs) push({
+        id: `charged-${log.transactionHash}-${log.logIndex}`,
+        kind: 'Payment settled',
+        detail: `Charge #${log.args.chargeNumber.toString()} settled to the immutable merchant address.`,
+        amount: log.args.amount,
+        subscriptionId: log.args.subscriptionId,
+        blockNumber: log.blockNumber,
+        logIndex: log.logIndex,
+        transactionHash: log.transactionHash,
+      })
+      for (const log of pausedLogs) if (ownedIds.has(log.args.subscriptionId.toString())) push({
+        id: `paused-${log.transactionHash}-${log.logIndex}`,
+        kind: 'Membership paused',
+        detail: 'Future settlement was paused by the subscriber.',
+        subscriptionId: log.args.subscriptionId,
+        blockNumber: log.blockNumber,
+        logIndex: log.logIndex,
+        transactionHash: log.transactionHash,
+      })
+      for (const log of resumedLogs) if (ownedIds.has(log.args.subscriptionId.toString())) push({
+        id: `resumed-${log.transactionHash}-${log.logIndex}`,
+        kind: 'Membership resumed',
+        detail: 'The subscriber restored the bounded payment schedule.',
+        subscriptionId: log.args.subscriptionId,
+        blockNumber: log.blockNumber,
+        logIndex: log.logIndex,
+        transactionHash: log.transactionHash,
+      })
+      for (const log of cancelledLogs) if (ownedIds.has(log.args.subscriptionId.toString())) push({
+        id: `cancelled-${log.transactionHash}-${log.logIndex}`,
+        kind: 'Membership cancelled',
+        detail: 'All future charges were permanently stopped.',
+        subscriptionId: log.args.subscriptionId,
+        blockNumber: log.blockNumber,
+        logIndex: log.logIndex,
+        transactionHash: log.transactionHash,
+      })
+      for (const log of refundedLogs) push({
+        id: `refunded-${log.transactionHash}-${log.logIndex}`,
+        kind: 'Payment refunded',
+        detail: 'Merchant-funded refund credited to the subscriber’s withdrawable vault balance.',
+        amount: log.args.amount,
+        subscriptionId: log.args.subscriptionId,
+        blockNumber: log.blockNumber,
+        logIndex: log.logIndex,
+        transactionHash: log.transactionHash,
+      })
+
+      const uniqueBlocks = [...new Set(records.map((record) => record.blockNumber.toString()))].map(BigInt)
+      const blocks = await Promise.all(uniqueBlocks.map((blockNumber) => publicClient.getBlock({ blockNumber })))
+      const timestamps = new Map(blocks.map((block) => [block.number.toString(), block.timestamp]))
+      setProofs(
+        records
+          .map((record) => ({ ...record, timestamp: timestamps.get(record.blockNumber.toString()) }))
+          .sort((a, b) => a.blockNumber === b.blockNumber ? b.logIndex - a.logIndex : a.blockNumber > b.blockNumber ? -1 : 1),
+      )
+    } catch (error) {
+      console.error('Could not load proof records:', error)
+      setProofsMessage(getErrorMessage(error))
+    } finally {
+      setProofsLoading(false)
+    }
+  }, [address, publicClient])
+
+  useEffect(() => {
+    if (tab === 'proofs') void refreshProofs()
+  }, [tab, refreshProofs])
+
+  function downloadProof(record: ProofRecord) {
+    const payload = {
+      product: 'Mandate',
+      environment: 'Soneium Minato testnet',
+      chainId: 1946,
+      tokenDisplay: TEST_TOKEN_LABEL,
+      tokenNotice: TEST_TOKEN_NOTE,
+      productionTarget: 'Startale USD (USDSC)',
+      protocolAddress: env.protocolAddress,
+      tokenAddress: env.tokenAddress,
+      event: record.kind,
+      detail: record.detail,
+      subscriptionId: record.subscriptionId?.toString(),
+      amount: record.amount ? `${formatToken(record.amount)} ${TEST_TOKEN_LABEL}` : undefined,
+      blockNumber: record.blockNumber.toString(),
+      transactionHash: record.transactionHash,
+      timestamp: record.timestamp ? new Date(Number(record.timestamp) * 1000).toISOString() : undefined,
+      explorer: `https://soneium-minato.blockscout.com/tx/${record.transactionHash}`,
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `mandate-${record.kind.toLowerCase().replaceAll(' ', '-')}-${record.transactionHash.slice(0, 10)}.json`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function openExplorer(hash: Hash) {
+    window.open(`https://soneium-minato.blockscout.com/tx/${hash}`, '_blank', 'noopener,noreferrer')
+  }
+
   return (
     <div className="app-shell">
       <div className="page-glow glow-one" />
@@ -276,7 +476,7 @@ export function App() {
 
       <div className="announcement">
         <span>Minato preview</span>
-        User-controlled memberships for Startale Mini Apps.
+        User-controlled memberships for Startale Mini Apps · {TEST_TOKEN_NOTE}
       </div>
       <header className="topbar">
         <Logo />
@@ -284,6 +484,7 @@ export function App() {
           <button className={tab === 'home' ? 'active' : ''} onClick={() => setTab('home')}>Discover</button>
           <button className={tab === 'passes' ? 'active' : ''} onClick={() => setTab('passes')}>My passes</button>
           <button className={tab === 'merchant' ? 'active' : ''} onClick={() => setTab('merchant')}>Merchant</button>
+          <button className={tab === 'proofs' ? 'active' : ''} onClick={() => setTab('proofs')}>Proofs</button>
           <button className={tab === 'developers' ? 'active' : ''} onClick={() => setTab('developers')}>Developers</button>
         </nav>
         <button className="wallet-button" onClick={isConnected ? () => disconnect() : connectWallet} disabled={isPending}>
@@ -330,22 +531,22 @@ export function App() {
                 <div className="membership-stack">
                   <article className="mini-membership violet-card">
                     <div className="mini-card-head"><span>ARCADE PRO</span><i>AP</i></div>
-                    <strong>5 mUSDC</strong>
+                    <strong>5 {TEST_TOKEN_LABEL}</strong>
                     <small>Renews 18 Aug · Cap locked</small>
                   </article>
                   <article className="mini-membership coral-card">
                     <div className="mini-card-head"><span>CREATOR CLUB</span><i>CI</i></div>
-                    <strong>2 mUSDC</strong>
+                    <strong>2 {TEST_TOKEN_LABEL}</strong>
                     <small>Renews 24 Aug · Cancel anytime</small>
                   </article>
                   <article className="mini-membership blue-card">
                     <div className="mini-card-head"><span>BUILDER TOOLKIT</span><i>BT</i></div>
-                    <strong>3 mUSDC</strong>
+                    <strong>3 {TEST_TOKEN_LABEL}</strong>
                     <small>Renews 28 Aug · Terms verified</small>
                   </article>
                 </div>
                 <div className="spend-panel">
-                  <div className="spend-title"><span>Monthly commitment</span><strong>10 / 20 mUSDC</strong></div>
+                  <div className="spend-title"><span>Monthly commitment</span><strong>10 / 20 {TEST_TOKEN_LABEL}</strong></div>
                   <div className="spend-track"><span /></div>
                   <div className="spend-foot"><span>Hard cap</span><strong>50% available</strong></div>
                 </div>
@@ -356,6 +557,14 @@ export function App() {
               <article><span className="metric-icon">◎</span><strong>1</strong><p>transparent rule per membership</p></article>
               <article><span className="metric-icon">↩</span><strong>100%</strong><p>unused balance remains withdrawable</p></article>
               <article><span className="metric-icon">S</span><strong>1946</strong><p>Soneium Minato chain ID</p></article>
+            </section>
+            <section className="token-clarity" aria-label="Test token notice">
+              <div>
+                <span className="eyebrow">TOKEN CLARITY</span>
+                <strong>{TEST_TOKEN_LABEL}</strong>
+                <p>{TEST_TOKEN_NOTE} {PRODUCTION_TOKEN_NOTE}</p>
+              </div>
+              <a href={`https://soneium-minato.blockscout.com/address/${env.tokenAddress}`} target="_blank" rel="noreferrer">View test token</a>
             </section>
             <section className="section" id="plans">
               <div className="section-head">
@@ -382,7 +591,7 @@ export function App() {
               </div>
               <div className="status-board">
                 <div><span>Protocol</span><strong>{hasDeployment ? `${env.protocolAddress.slice(0, 8)}…` : 'Not deployed'}</strong></div>
-                <div><span>Token</span><strong>{hasDeployment ? `${env.tokenAddress.slice(0, 8)}…` : 'Mock USDC pending'}</strong></div>
+                <div><span>{TEST_TOKEN_LABEL}</span><strong>{hasDeployment ? `${env.tokenAddress.slice(0, 8)}…` : 'Pending'}</strong></div>
                 <div><span>Network</span><strong>Soneium Minato</strong></div>
                 <div><span>Exit guarantee</span><strong className="mint">Withdrawals always open</strong></div>
               </div>
@@ -404,7 +613,7 @@ export function App() {
               <>
                 <div className="pass-balance-grid">
                   <article>
-                    <span>Wallet mUSDC</span>
+                    <span>Wallet {TEST_TOKEN_LABEL}</span>
                     <strong>{formatToken(walletTokenBalance)}</strong>
                     <small>Available in the connected wallet</small>
                   </article>
@@ -454,7 +663,7 @@ export function App() {
                           </div>
                           <div className="membership-meta">
                             <span>Next charge: {formatChargeTime(membership.nextChargeAt)}</span>
-                            <strong>{formatToken(membership.amount)} mUSDC</strong>
+                            <strong>{formatToken(membership.amount)} {TEST_TOKEN_LABEL}</strong>
                             <span>{membership.charges} / {membership.chargeLimit} charges used</span>
                           </div>
                           <div className="membership-actions">
@@ -545,7 +754,7 @@ export function App() {
                         </div>
                         <div className="charge-details">
                           <span>{availability}</span>
-                          <strong>{formatToken(membership.amount)} mUSDC</strong>
+                          <strong>{formatToken(membership.amount)} {TEST_TOKEN_LABEL}</strong>
                           <small>{membership.charges} / {membership.chargeLimit} charges settled</small>
                         </div>
                         <button
@@ -553,7 +762,7 @@ export function App() {
                           onClick={() => chargeMembership(membership)}
                           disabled={!canCharge || merchantActionId !== null}
                         >
-                          {isBusy ? 'Settling…' : canCharge ? `Charge ${formatToken(membership.amount)} mUSDC` : availability}
+                          {isBusy ? 'Settling…' : canCharge ? `Charge ${formatToken(membership.amount)} ${TEST_TOKEN_LABEL}` : availability}
                         </button>
                       </article>
                     )
@@ -563,11 +772,62 @@ export function App() {
             </div>
           </section>
         )}
+
+        {tab === 'proofs' && (
+          <section className="section inner-page proof-page">
+            <span className="eyebrow">RECEIPTS & PROOF CENTER</span>
+            <h1>Every important action, linked to Minato.</h1>
+            <p className="page-lead">Live event records from MandateProtocol. Open any transaction in Blockscout or download a portable JSON receipt.</p>
+
+            <div className="proof-summary-grid">
+              <article><span>Confirmed operations</span><strong>{proofs.length}</strong><small>Loaded from chain logs</small></article>
+              <article><span>Settled value</span><strong>{formatToken(proofs.filter((proof) => proof.kind === 'Payment settled').reduce((sum, proof) => sum + (proof.amount ?? 0n), 0n))}</strong><small>{TEST_TOKEN_LABEL}</small></article>
+              <article><span>Protocol</span><strong className="proof-address">{env.protocolAddress.slice(0, 8)}…{env.protocolAddress.slice(-6)}</strong><a href={`https://soneium-minato.blockscout.com/address/${env.protocolAddress}`} target="_blank" rel="noreferrer">Open contract</a></article>
+            </div>
+
+            <div className="proof-token-note">
+              <strong>{TEST_TOKEN_LABEL}</strong>
+              <span>{TEST_TOKEN_NOTE} {PRODUCTION_TOKEN_NOTE}</span>
+            </div>
+
+            {!isConnected ? (
+              <div className="empty-pass-state"><strong>Connect your wallet to load its proof history.</strong><button className="primary-button" onClick={connectWallet}>Connect wallet</button></div>
+            ) : proofsLoading ? (
+              <div className="empty-pass-state"><strong>Reading confirmed Minato events…</strong></div>
+            ) : proofsMessage ? (
+              <p className="passes-message">{proofsMessage}</p>
+            ) : proofs.length === 0 ? (
+              <div className="empty-pass-state"><strong>No confirmed operations found for this account.</strong></div>
+            ) : (
+              <div className="proof-list">
+                {proofs.map((proof) => (
+                  <article className="proof-row-card" key={proof.id}>
+                    <span className="proof-kind">{proof.kind}</span>
+                    <div className="proof-copy">
+                      <strong>{proof.subscriptionId ? `Subscription #${proof.subscriptionId.toString()}` : 'Vault activity'}</strong>
+                      <p>{proof.detail}</p>
+                    </div>
+                    <div className="proof-meta">
+                      {proof.amount !== undefined && <strong>{formatToken(proof.amount)} {TEST_TOKEN_LABEL}</strong>}
+                      <span>{proof.timestamp ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(Number(proof.timestamp) * 1000)) : `Block ${proof.blockNumber.toString()}`}</span>
+                      <code>{proof.transactionHash.slice(0, 10)}…{proof.transactionHash.slice(-8)}</code>
+                    </div>
+                    <div className="proof-actions">
+                      <button className="secondary-button" onClick={() => openExplorer(proof.transactionHash)}>Explorer</button>
+                      <button className="receipt-button" onClick={() => downloadProof(proof)}>Download receipt</button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
         {tab === 'developers' && (
           <section className="section inner-page developer-page">
             <span className="eyebrow">OPEN INFRASTRUCTURE</span>
             <h1>One access layer for every Startale Mini App.</h1>
             <p className="page-lead">The SDK exposes deposits, subscriptions, access checks, pause, cancel and withdrawal with typed viem calls.</p>
+            <div className="developer-token-note"><strong>Production asset: USDSC</strong><span>The Minato preview uses {TEST_TOKEN_LABEL}, a valueless mock token, while production deployments target Startale USD (USDSC).</span></div>
             <div className="code-card">
               <div className="code-head"><span>TypeScript</span><button>Copy</button></div>
               <pre><code>{`import { MandateClient } from '@mandate/sdk'\n\nconst mandate = new MandateClient({\n  protocolAddress,\n  publicClient,\n  walletClient,\n  account,\n})\n\nconst active = await mandate.hasActiveAccess(42n)`}</code></pre>
@@ -588,6 +848,7 @@ export function App() {
         <button className={tab === 'home' ? 'active' : ''} onClick={() => setTab('home')}>Discover</button>
         <button className={tab === 'passes' ? 'active' : ''} onClick={() => setTab('passes')}>Passes</button>
         <button className={tab === 'merchant' ? 'active' : ''} onClick={() => setTab('merchant')}>Merchant</button>
+        <button className={tab === 'proofs' ? 'active' : ''} onClick={() => setTab('proofs')}>Proofs</button>
         <button className={tab === 'developers' ? 'active' : ''} onClick={() => setTab('developers')}>Developers</button>
       </nav>
       {selectedPlan && (

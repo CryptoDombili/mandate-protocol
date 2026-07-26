@@ -1,4 +1,5 @@
 import type { Plan } from '../data'
+import { TEST_TOKEN_LABEL } from '../token'
 
 export function PlanCard({ plan, onSelect }: { plan: Plan; onSelect: (plan: Plan) => void }) {
   return (
@@ -18,7 +19,7 @@ export function PlanCard({ plan, onSelect }: { plan: Plan; onSelect: (plan: Plan
       </ul>
       <div className="price-row">
         <div>
-          <strong>{plan.price} mUSDC</strong>
+          <strong>{plan.price} {TEST_TOKEN_LABEL}</strong>
           <span>every {plan.period}</span>
         </div>
         <button className="small-button" onClick={() => onSelect(plan)}>
