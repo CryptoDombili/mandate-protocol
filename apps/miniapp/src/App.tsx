@@ -1,16 +1,55 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { sdk } from '@farcaster/miniapp-sdk'
-import { useAccount, useConnect, useDisconnect } from 'wagmi'
+import { formatUnits } from 'viem'
+import { useAccount, useConnect, useDisconnect, usePublicClient, useWriteContract } from 'wagmi'
 import { Logo } from './components/Logo'
 import { PlanCard } from './components/PlanCard'
 import { SubscribeSheet } from './components/SubscribeSheet'
 import { plans, type Plan } from './data'
 import { env, hasDeployment } from './env'
+import {
+  DEPLOYMENT_BLOCK,
+  protocolReadAbi,
+  subscriptionCreatedEvent,
+  tokenReadAbi,
+  type PlanTuple,
+  type SubscriptionTuple,
+} from './protocol'
 
-const activeMemberships = [
-  { name: 'Arcade Pro Pass', next: '18 Aug', amount: '5 mUSDC', state: 'Active', accent: 'violet' },
-  { name: 'Creator Inner Circle', next: '24 Aug', amount: '2 mUSDC', state: 'Paused', accent: 'coral' },
-]
+const statusLabels = ['None', 'Active', 'Paused', 'Cancelled', 'Completed'] as const
+
+interface LiveMembership {
+  id: bigint
+  planId: bigint
+  name: string
+  amount: bigint
+  nextChargeAt: bigint
+  paidUntil: bigint
+  status: number
+  charges: number
+  chargeLimit: number
+  accent: Plan['accent']
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === 'object' && 'shortMessage' in error) {
+    return String((error as { shortMessage?: unknown }).shortMessage ?? 'Transaction failed.')
+  }
+  return error instanceof Error ? error.message : 'Transaction failed.'
+}
+
+function formatToken(amount: bigint): string {
+  return Number(formatUnits(amount, 6)).toLocaleString('en-US', { maximumFractionDigits: 2 })
+}
+
+function formatChargeTime(timestamp: bigint): string {
+  if (timestamp === 0n) return 'Not scheduled'
+  if (timestamp * 1000n <= BigInt(Date.now())) return 'Due now'
+  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(
+    new Date(Number(timestamp) * 1000),
+  )
+}
+
 
 export function App() {
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null)
@@ -18,6 +57,14 @@ export function App() {
   const { address, isConnected } = useAccount()
   const { connectors, connectAsync, isPending } = useConnect()
   const { disconnect } = useDisconnect()
+  const publicClient = usePublicClient()
+  const { writeContractAsync } = useWriteContract()
+  const [memberships, setMemberships] = useState<LiveMembership[]>([])
+  const [passesLoading, setPassesLoading] = useState(false)
+  const [passesMessage, setPassesMessage] = useState('')
+  const [walletTokenBalance, setWalletTokenBalance] = useState(0n)
+  const [vaultTokenBalance, setVaultTokenBalance] = useState(0n)
+  const [actionId, setActionId] = useState<bigint | null>(null)
 
   useEffect(() => {
     sdk.actions.ready().catch(() => undefined)
@@ -57,6 +104,142 @@ export function App() {
       const message = error instanceof Error ? error.message : 'Wallet connection failed.'
       console.error('Wallet connection failed:', error)
       window.alert(message)
+    }
+  }
+
+  const refreshPasses = useCallback(async () => {
+    if (!address || !publicClient || !hasDeployment) {
+      setMemberships([])
+      setWalletTokenBalance(0n)
+      setVaultTokenBalance(0n)
+      return
+    }
+
+    setPassesLoading(true)
+    setPassesMessage('')
+    try {
+      const [tokenBalance, vaultBalance, logs] = await Promise.all([
+        publicClient.readContract({
+          address: env.tokenAddress,
+          abi: tokenReadAbi,
+          functionName: 'balanceOf',
+          args: [address],
+        }),
+        publicClient.readContract({
+          address: env.protocolAddress,
+          abi: protocolReadAbi,
+          functionName: 'vaultBalance',
+          args: [address, env.tokenAddress],
+        }),
+        publicClient.getLogs({
+          address: env.protocolAddress,
+          event: subscriptionCreatedEvent,
+          args: { subscriber: address },
+          fromBlock: DEPLOYMENT_BLOCK,
+          toBlock: 'latest',
+          strict: true,
+        }),
+      ])
+
+      setWalletTokenBalance(tokenBalance)
+      setVaultTokenBalance(vaultBalance)
+
+      const subscriptionIds = [...new Set(logs.map((log) => log.args.subscriptionId.toString()))].map(BigInt)
+      const liveMemberships = await Promise.all(
+        subscriptionIds.map(async (subscriptionId) => {
+          const subscription = (await publicClient.readContract({
+            address: env.protocolAddress,
+            abi: protocolReadAbi,
+            functionName: 'subscriptions',
+            args: [subscriptionId],
+          })) as SubscriptionTuple
+          const plan = (await publicClient.readContract({
+            address: env.protocolAddress,
+            abi: protocolReadAbi,
+            functionName: 'plans',
+            args: [subscription[0]],
+          })) as PlanTuple
+          const localPlan = plans.find((item) => BigInt(item.id) === subscription[0])
+
+          return {
+            id: subscriptionId,
+            planId: subscription[0],
+            name: localPlan?.name ?? plan[6].split('/').at(-1)?.replaceAll('-', ' ') ?? `Plan ${subscription[0]}`,
+            amount: plan[2],
+            nextChargeAt: subscription[5],
+            paidUntil: subscription[6],
+            status: subscription[9],
+            chargeLimit: subscription[7],
+            charges: subscription[8],
+            accent: localPlan?.accent ?? 'violet',
+          } satisfies LiveMembership
+        }),
+      )
+
+      setMemberships(liveMemberships.sort((a, b) => Number(b.id - a.id)))
+    } catch (error) {
+      console.error('Could not load passes:', error)
+      setPassesMessage(getErrorMessage(error))
+    } finally {
+      setPassesLoading(false)
+    }
+  }, [address, publicClient])
+
+  useEffect(() => {
+    if (tab === 'passes') void refreshPasses()
+  }, [tab, refreshPasses])
+
+  async function runMembershipAction(membership: LiveMembership, action: 'pause' | 'resume' | 'cancel') {
+    if (!publicClient) return
+    setActionId(membership.id)
+    setPassesMessage('')
+    try {
+      const functionName =
+        action === 'pause'
+          ? 'pauseSubscription'
+          : action === 'resume'
+            ? 'resumeSubscription'
+            : 'cancelSubscription'
+      const hash = await writeContractAsync({
+        address: env.protocolAddress,
+        abi: protocolReadAbi,
+        functionName,
+        args: [membership.id],
+      })
+      await publicClient.waitForTransactionReceipt({ hash })
+      setPassesMessage(
+        action === 'pause'
+          ? 'Membership paused on Minato.'
+          : action === 'resume'
+            ? 'Membership resumed on Minato.'
+            : 'Membership cancelled on Minato.',
+      )
+      await refreshPasses()
+    } catch (error) {
+      setPassesMessage(getErrorMessage(error))
+    } finally {
+      setActionId(null)
+    }
+  }
+
+  async function withdrawVault() {
+    if (!publicClient || vaultTokenBalance === 0n) return
+    setActionId(-1n)
+    setPassesMessage('')
+    try {
+      const hash = await writeContractAsync({
+        address: env.protocolAddress,
+        abi: protocolReadAbi,
+        functionName: 'withdraw',
+        args: [env.tokenAddress, vaultTokenBalance],
+      })
+      await publicClient.waitForTransactionReceipt({ hash })
+      setPassesMessage('Unused vault balance withdrawn to your wallet.')
+      await refreshPasses()
+    } catch (error) {
+      setPassesMessage(getErrorMessage(error))
+    } finally {
+      setActionId(null)
     }
   }
 
@@ -184,17 +367,83 @@ export function App() {
           <section className="section inner-page">
             <span className="eyebrow">YOUR CONTROL CENTER</span>
             <h1>My passes</h1>
-            <p className="page-lead">Review upcoming charges, pause access, cancel future payments or withdraw unused vault funds.</p>
-            <div className="membership-list">
-              {activeMemberships.map((membership) => (
-                <article key={membership.name} className={`membership-row row-${membership.accent}`}>
-                  <span className="membership-badge">{membership.name.slice(0, 2).toUpperCase()}</span>
-                  <div><span className={`state-pill state-${membership.state.toLowerCase()}`}>{membership.state}</span><h3>{membership.name}</h3></div>
-                  <div className="membership-meta"><span>Next charge {membership.next}</span><strong>{membership.amount}</strong></div>
-                  <div className="membership-actions"><button>Pause</button><button className="danger-button">Cancel</button></div>
-                </article>
-              ))}
-            </div>
+            <p className="page-lead">Live data from your connected account on Soneium Minato.</p>
+
+            {!isConnected ? (
+              <div className="empty-pass-state">
+                <strong>Connect your wallet to load onchain passes.</strong>
+                <button className="primary-button" onClick={connectWallet}>Connect wallet</button>
+              </div>
+            ) : (
+              <>
+                <div className="pass-balance-grid">
+                  <article>
+                    <span>Wallet mUSDC</span>
+                    <strong>{formatToken(walletTokenBalance)}</strong>
+                    <small>Available in the connected wallet</small>
+                  </article>
+                  <article>
+                    <span>Protected vault</span>
+                    <strong>{formatToken(vaultTokenBalance)}</strong>
+                    <small>Always withdrawable when unspent</small>
+                  </article>
+                  <article className="vault-action-card">
+                    <span>Vault control</span>
+                    <button
+                      className="secondary-button"
+                      onClick={withdrawVault}
+                      disabled={vaultTokenBalance === 0n || actionId !== null}
+                    >
+                      {actionId === -1n ? 'Withdrawing…' : 'Withdraw all'}
+                    </button>
+                    <small>No admin can block this exit</small>
+                  </article>
+                </div>
+
+                {passesMessage && <p className="passes-message">{passesMessage}</p>}
+
+                {passesLoading ? (
+                  <div className="empty-pass-state"><strong>Reading Minato activity…</strong></div>
+                ) : memberships.length === 0 ? (
+                  <div className="empty-pass-state">
+                    <strong>No onchain memberships yet.</strong>
+                    <p>The old sample passes have been removed. Create a real membership from Discover and it will appear here after confirmation.</p>
+                    <button className="primary-button" onClick={() => setTab('home')}>Explore memberships</button>
+                  </div>
+                ) : (
+                  <div className="membership-list">
+                    {memberships.map((membership) => {
+                      const state = statusLabels[membership.status] ?? 'Unknown'
+                      const isBusy = actionId === membership.id
+                      const canPause = membership.status === 1
+                      const canResume = membership.status === 2
+                      const canCancel = membership.status === 1 || membership.status === 2
+                      return (
+                        <article key={membership.id.toString()} className={`membership-row row-${membership.accent}`}>
+                          <span className="membership-badge">{membership.name.slice(0, 2).toUpperCase()}</span>
+                          <div>
+                            <span className={`state-pill state-${state.toLowerCase()}`}>{state}</span>
+                            <h3>{membership.name}</h3>
+                            <small className="subscription-id">Subscription #{membership.id.toString()}</small>
+                          </div>
+                          <div className="membership-meta">
+                            <span>Next charge: {formatChargeTime(membership.nextChargeAt)}</span>
+                            <strong>{formatToken(membership.amount)} mUSDC</strong>
+                            <span>{membership.charges} / {membership.chargeLimit} charges used</span>
+                          </div>
+                          <div className="membership-actions">
+                            {canPause && <button onClick={() => runMembershipAction(membership, 'pause')} disabled={isBusy}>{isBusy ? 'Waiting…' : 'Pause'}</button>}
+                            {canResume && <button onClick={() => runMembershipAction(membership, 'resume')} disabled={isBusy}>{isBusy ? 'Waiting…' : 'Resume'}</button>}
+                            {canCancel && <button className="danger-button" onClick={() => runMembershipAction(membership, 'cancel')} disabled={isBusy}>{isBusy ? 'Waiting…' : 'Cancel'}</button>}
+                            {!canPause && !canResume && !canCancel && <span className="closed-label">No future charges</span>}
+                          </div>
+                        </article>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
+            )}
           </section>
         )}
         {tab === 'merchant' && (
@@ -237,7 +486,13 @@ export function App() {
         <button className={tab === 'merchant' ? 'active' : ''} onClick={() => setTab('merchant')}>Merchant</button>
         <button className={tab === 'developers' ? 'active' : ''} onClick={() => setTab('developers')}>Developers</button>
       </nav>
-      {selectedPlan && <SubscribeSheet plan={selectedPlan} onClose={() => setSelectedPlan(null)} />}
+      {selectedPlan && (
+        <SubscribeSheet
+          plan={selectedPlan}
+          onClose={() => setSelectedPlan(null)}
+          onCreated={refreshPasses}
+        />
+      )}
     </div>
   )
 }

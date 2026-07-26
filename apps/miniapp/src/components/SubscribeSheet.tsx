@@ -1,12 +1,28 @@
 import { useMemo, useState } from 'react'
 import { parseUnits } from 'viem'
-import { useAccount, useWriteContract } from 'wagmi'
+import { useAccount, usePublicClient, useWriteContract } from 'wagmi'
 import { erc20Abi, mandateProtocolAbi } from '@mandate/sdk'
 import type { Plan } from '../data'
 import { env, hasDeployment } from '../env'
 
-export function SubscribeSheet({ plan, onClose }: { plan: Plan; onClose: () => void }) {
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === 'object' && 'shortMessage' in error) {
+    return String((error as { shortMessage?: unknown }).shortMessage ?? 'Transaction failed.')
+  }
+  return error instanceof Error ? error.message : 'Transaction failed.'
+}
+
+export function SubscribeSheet({
+  plan,
+  onClose,
+  onCreated,
+}: {
+  plan: Plan
+  onClose: () => void
+  onCreated?: () => void | Promise<void>
+}) {
   const { isConnected } = useAccount()
+  const publicClient = usePublicClient()
   const { writeContractAsync, isPending } = useWriteContract()
   const [step, setStep] = useState<'review' | 'approved' | 'deposited' | 'created'>('review')
   const [message, setMessage] = useState('')
@@ -17,46 +33,54 @@ export function SubscribeSheet({ plan, onClose }: { plan: Plan; onClose: () => v
 
   async function execute() {
     if (!isConnected) {
-      setMessage('Connect the Startale smart account first.')
+      setMessage('Connect the wallet first.')
+      return
+    }
+    if (!publicClient) {
+      setMessage('Minato RPC is not ready. Please refresh and try again.')
       return
     }
     if (!hasDeployment || env.demoMode) {
-      setStep((current) =>
-        current === 'review' ? 'approved' : current === 'approved' ? 'deposited' : 'created',
-      )
-      setMessage('Demo mode: the onchain transaction was simulated locally.')
+      setMessage('The live Minato contracts are not connected.')
       return
     }
 
     try {
       setMessage('')
       if (step === 'review') {
-        await writeContractAsync({
+        const hash = await writeContractAsync({
           address: env.tokenAddress,
           abi: erc20Abi,
           functionName: 'approve',
           args: [env.protocolAddress, total],
         })
+        await publicClient.waitForTransactionReceipt({ hash })
         setStep('approved')
+        setMessage('Token cap approved on Minato.')
       } else if (step === 'approved') {
-        await writeContractAsync({
+        const hash = await writeContractAsync({
           address: env.protocolAddress,
           abi: mandateProtocolAbi,
           functionName: 'deposit',
           args: [env.tokenAddress, total],
         })
+        await publicClient.waitForTransactionReceipt({ hash })
         setStep('deposited')
+        setMessage('Protected vault funded on Minato.')
       } else if (step === 'deposited') {
-        await writeContractAsync({
+        const hash = await writeContractAsync({
           address: env.protocolAddress,
           abi: mandateProtocolAbi,
           functionName: 'subscribe',
           args: [BigInt(plan.id), chargeLimit, total],
         })
+        await publicClient.waitForTransactionReceipt({ hash })
         setStep('created')
+        setMessage('Membership created on Minato. It is now visible in My passes.')
+        await onCreated?.()
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Transaction failed.')
+      setMessage(getErrorMessage(error))
     }
   }
 
@@ -103,7 +127,7 @@ export function SubscribeSheet({ plan, onClose }: { plan: Plan; onClose: () => v
         </div>
 
         <button className="primary-button full" onClick={step === 'created' ? onClose : execute} disabled={isPending}>
-          {isPending ? 'Waiting for approval…' : step === 'created' ? 'Done' : buttonLabel}
+          {isPending ? 'Waiting for confirmation…' : step === 'created' ? 'Done' : buttonLabel}
         </button>
         {message && <p className="transaction-message">{message}</p>}
       </section>
