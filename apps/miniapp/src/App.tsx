@@ -26,7 +26,15 @@ export function App() {
   const shortAddress = address ? `${address.slice(0, 6)}…${address.slice(-4)}` : ''
 
   function connectWallet() {
-    const connector = connectors[0]
+    const isEmbedded = window.parent !== window
+    const startale = connectors.find((connector) =>
+      `${connector.id} ${connector.name}`.toLowerCase().includes('startale'),
+    )
+    const browserWallet = connectors.find((connector) => {
+      const label = `${connector.id} ${connector.name}`.toLowerCase()
+      return label.includes('metamask') || label.includes('injected')
+    })
+    const connector = isEmbedded ? (startale ?? browserWallet) : (browserWallet ?? startale)
     if (connector) connect({ connector })
   }
 
@@ -137,7 +145,9 @@ export function App() {
                 <span className="dark-eyebrow">PROTOCOL STATUS</span>
                 <h2>{hasDeployment ? 'Connected to Minato.' : 'Built for the first Minato deployment.'}</h2>
                 <p>
-                  The interface is running in {env.demoMode ? 'demo' : 'onchain'} mode. Deploy the included contracts and add their addresses to activate real testnet actions.
+                  {hasDeployment && !env.demoMode
+                    ? 'The live Minato contracts are connected. Membership approvals, vault funding and bounded subscriptions now execute onchain.'
+                    : 'The interface is running in demo mode. Deploy the included contracts and add their addresses to activate real testnet actions.'}
                 </p>
                 <button className="protocol-button" onClick={() => setTab('developers')}>Explore the architecture</button>
               </div>
