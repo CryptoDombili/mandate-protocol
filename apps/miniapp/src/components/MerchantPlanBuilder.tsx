@@ -58,7 +58,7 @@ export function MerchantPlanBuilder({
   const [merchantPlans, setMerchantPlans] = useState<MerchantPlan[]>([])
   const [plansLoading, setPlansLoading] = useState(false)
   const [toggleId, setToggleId] = useState<bigint | null>(null)
-  const { isCorrectChain, switchToMinato, writeBlockedReason } = useMinatoNetwork()
+  const { isCorrectChain, switchToMinato } = useMinatoNetwork()
 
   const lifetimeCap = useMemo(() => {
     const numericPrice = Number(price)
@@ -266,20 +266,12 @@ export function MerchantPlanBuilder({
             <div><span>Merchant</span><strong>{address ? `${address.slice(0, 8)}…${address.slice(-6)}` : 'Not connected'}</strong></div>
             <div><span>Lifetime maximum</span><strong>{lifetimeCap.toLocaleString('en-US', { maximumFractionDigits: 4 })} {TEST_TOKEN_LABEL}</strong></div>
             <div><span>Terms</span><strong>Immutable after publish</strong></div>
-            <button
-              className="primary-button"
-              onClick={createPlan}
-              disabled={busy || (isConnected && !isCorrectChain)}
-            >
-              {isConnected && !isCorrectChain ? 'Minato unavailable in Preview' : busy ? 'Publishing…' : 'Publish plan on Minato'}
-            </button>
+            <button className="primary-button" onClick={createPlan} disabled={busy}>{busy ? 'Publishing…' : 'Publish plan on Minato'}</button>
           </div>
         </>
       )}
 
-      {(message || (isConnected && !isCorrectChain)) && (
-        <p className="passes-message">{message || writeBlockedReason}</p>
-      )}
+      {message && <p className="passes-message">{message}</p>}
 
       {isConnected && (
         <div className="merchant-plan-list">
@@ -296,11 +288,7 @@ export function MerchantPlanBuilder({
               <div><span>Price</span><strong>{formatPrice(plan.amount)} {TEST_TOKEN_LABEL}</strong></div>
               <div><span>Interval</span><strong>{Number(plan.periodSeconds) / 86_400} days</strong></div>
               <div><span>Charge cap</span><strong>{plan.chargeLimit === 0 ? 'Open' : plan.chargeLimit}</strong></div>
-              <button
-                className={plan.enabled ? 'danger-button' : 'secondary-button'}
-                onClick={() => togglePlan(plan)}
-                disabled={toggleId !== null || (isConnected && !isCorrectChain)}
-              >
+              <button className={plan.enabled ? 'danger-button' : 'secondary-button'} onClick={() => togglePlan(plan)} disabled={toggleId !== null}>
                 {toggleId === plan.id ? 'Waiting…' : plan.enabled ? 'Pause plan' : 'Re-enable'}
               </button>
             </article>
