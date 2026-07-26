@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { sdk } from '@farcaster/miniapp-sdk'
+import {
+  MandateClient,
+  mandateMinatoDeployment,
+  type AccessDecision,
+  type MandateClientConfig,
+} from '@mandate/sdk'
 import { formatUnits, type Hash } from 'viem'
 import { useAccount, useConnect, useDisconnect, usePublicClient, useWriteContract } from 'wagmi'
 import { Logo } from './components/Logo'
@@ -64,6 +70,32 @@ function formatChargeTime(timestamp: bigint): string {
 }
 
 
+const installSnippet = `npm install @mandate/sdk viem`
+const accessSnippet = `import { MandateClient } from '@mandate/sdk'
+
+const mandate = new MandateClient({
+  protocolAddress,
+  publicClient,
+})
+
+const decision = await mandate.checkAccess(
+  subscriptionId,
+  connectedAccount,
+)
+
+if (decision.granted) openPremiumFeature()`
+const transactionSnippet = `const mandate = new MandateClient({
+  protocolAddress,
+  publicClient,
+  walletClient,
+  account,
+})
+
+await mandate.approveToken(token, lifetimeCap)
+await mandate.deposit(token, lifetimeCap)
+await mandate.subscribe(planId, chargeLimit, lifetimeCap)`
+
+
 export function App() {
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null)
   const [tab, setTab] = useState<'home' | 'passes' | 'merchant' | 'proofs' | 'developers'>('home')
@@ -84,6 +116,11 @@ export function App() {
   const [proofs, setProofs] = useState<ProofRecord[]>([])
   const [proofsLoading, setProofsLoading] = useState(false)
   const [proofsMessage, setProofsMessage] = useState('')
+  const [developerSubscriptionId, setDeveloperSubscriptionId] = useState('1')
+  const [developerDecision, setDeveloperDecision] = useState<AccessDecision | null>(null)
+  const [developerChecking, setDeveloperChecking] = useState(false)
+  const [developerMessage, setDeveloperMessage] = useState('')
+  const [copiedDeveloperSnippet, setCopiedDeveloperSnippet] = useState('')
 
   useEffect(() => {
     sdk.actions.ready().catch(() => undefined)
@@ -123,6 +160,46 @@ export function App() {
       const message = error instanceof Error ? error.message : 'Wallet connection failed.'
       console.error('Wallet connection failed:', error)
       window.alert(message)
+    }
+  }
+
+  async function runDeveloperAccessCheck() {
+    if (!publicClient || !hasDeployment) {
+      setDeveloperMessage('The Minato deployment is not available.')
+      return
+    }
+
+    const rawId = developerSubscriptionId.trim()
+    if (!/^\d+$/.test(rawId) || BigInt(rawId) === 0n) {
+      setDeveloperDecision(null)
+      setDeveloperMessage('Enter a valid subscription id greater than zero.')
+      return
+    }
+
+    setDeveloperChecking(true)
+    setDeveloperMessage('')
+    try {
+      const mandate = new MandateClient({
+        protocolAddress: env.protocolAddress,
+        publicClient: publicClient as unknown as MandateClientConfig['publicClient'],
+      })
+      const decision = await mandate.checkAccess(BigInt(rawId), address)
+      setDeveloperDecision(decision)
+    } catch (error) {
+      setDeveloperDecision(null)
+      setDeveloperMessage(getErrorMessage(error))
+    } finally {
+      setDeveloperChecking(false)
+    }
+  }
+
+  async function copyDeveloperSnippet(key: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopiedDeveloperSnippet(key)
+      window.setTimeout(() => setCopiedDeveloperSnippet(''), 1800)
+    } catch {
+      setDeveloperMessage('Clipboard access was blocked by the browser.')
     }
   }
 
@@ -832,18 +909,61 @@ export function App() {
         )}
         {tab === 'developers' && (
           <section className="section inner-page developer-page">
-            <span className="eyebrow">OPEN INFRASTRUCTURE</span>
-            <h1>One access layer for every Startale Mini App.</h1>
-            <p className="page-lead">The SDK exposes deposits, subscriptions, access checks, pause, cancel and withdrawal with typed viem calls.</p>
-            <div className="developer-token-note"><strong>Production asset: USDSC</strong><span>The Minato preview uses {TEST_TOKEN_LABEL}, a valueless mock token, while production deployments target Startale USD (USDSC).</span></div>
-            <div className="code-card">
-              <div className="code-head"><span>TypeScript</span><button>Copy</button></div>
-              <pre><code>{`import { MandateClient } from '@mandate/sdk'\n\nconst mandate = new MandateClient({\n  protocolAddress,\n  publicClient,\n  walletClient,\n  account,\n})\n\nconst active = await mandate.hasActiveAccess(42n)`}</code></pre>
+            <span className="eyebrow">MANDATE DEVELOPER KIT</span>
+            <h1>Drop-in paid access for every Startale Mini App.</h1>
+            <p className="page-lead">Use one typed SDK for membership plans, bounded payments, access decisions, merchant settlement and user-controlled exits.</p>
+
+            <div className="sdk-status-grid">
+              <article><span>SDK</span><strong>@mandate/sdk v0.7</strong><small>Typed viem client</small></article>
+              <article><span>Network</span><strong>{mandateMinatoDeployment.chainName}</strong><small>Chain ID {mandateMinatoDeployment.chainId}</small></article>
+              <article><span>Protocol</span><strong>{mandateMinatoDeployment.protocolAddress.slice(0, 10)}…{mandateMinatoDeployment.protocolAddress.slice(-6)}</strong><small>Live testnet deployment</small></article>
+              <article><span>Wallet surface</span><strong>Host + browser</strong><small>Startale or injected wallet</small></article>
             </div>
+
+            <div className="developer-token-note"><strong>Production asset: USDSC</strong><span>The Minato preview uses {TEST_TOKEN_LABEL}, a valueless mock token, while production deployments target Startale USD (USDSC).</span></div>
+
+            <div className="developer-install-card">
+              <div><span className="eyebrow">INSTALL</span><strong>Two dependencies. No custom indexer required.</strong></div>
+              <code>{installSnippet}</code>
+              <button className="secondary-button" onClick={() => copyDeveloperSnippet('install', installSnippet)}>{copiedDeveloperSnippet === 'install' ? 'Copied' : 'Copy'}</button>
+            </div>
+
+            <div className="developer-workbench">
+              <div className="code-card">
+                <div className="code-head"><span>Access gate · TypeScript</span><button onClick={() => copyDeveloperSnippet('access', accessSnippet)}>{copiedDeveloperSnippet === 'access' ? 'Copied' : 'Copy'}</button></div>
+                <pre><code>{accessSnippet}</code></pre>
+              </div>
+
+              <article className="live-access-gate">
+                <span className="eyebrow">LIVE SDK CHECK</span>
+                <h2>Test a real Minato subscription.</h2>
+                <p>The result comes from <code>MandateClient.checkAccess()</code>, including subscriber matching and paid-through access.</p>
+                <label htmlFor="developer-subscription-id">Subscription ID</label>
+                <div className="developer-check-row">
+                  <input id="developer-subscription-id" inputMode="numeric" value={developerSubscriptionId} onChange={(event) => setDeveloperSubscriptionId(event.target.value)} />
+                  <button className="primary-button" onClick={runDeveloperAccessCheck} disabled={developerChecking}>{developerChecking ? 'Checking…' : 'Check access'}</button>
+                </div>
+                {developerMessage && <p className="developer-check-message denied">{developerMessage}</p>}
+                {developerDecision && (
+                  <div className={`developer-decision ${developerDecision.granted ? 'granted' : 'denied'}`}>
+                    <span>{developerDecision.granted ? 'ACCESS GRANTED' : 'ACCESS DENIED'}</span>
+                    <strong>{developerDecision.reason.replaceAll('-', ' ')}</strong>
+                    {developerDecision.subscription && <small>Subscription #{developerDecision.subscription.id.toString()} · Plan #{developerDecision.subscription.planId.toString()}</small>}
+                    {developerDecision.subscription && developerDecision.subscription.paidUntil > 0n && <small>Paid through {new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(Number(developerDecision.subscription.paidUntil) * 1000))}</small>}
+                  </div>
+                )}
+              </article>
+            </div>
+
+            <div className="code-card developer-transaction-code">
+              <div className="code-head"><span>Bounded membership flow · TypeScript</span><button onClick={() => copyDeveloperSnippet('transactions', transactionSnippet)}>{copiedDeveloperSnippet === 'transactions' ? 'Copied' : 'Copy'}</button></div>
+              <pre><code>{transactionSnippet}</code></pre>
+            </div>
+
             <div className="developer-points">
-              <article><strong>Immutable plan terms</strong><p>No silent price or interval changes.</p></article>
-              <article><strong>Permissionless keeper</strong><p>Anyone may trigger a due charge; nobody may change the rules.</p></article>
-              <article><strong>Exit always available</strong><p>Emergency pauses never block user withdrawals.</p></article>
+              <article><strong>Typed access decisions</strong><p>Distinguish active paid access, an unpaid subscription, expiry, cancellation and subscriber mismatch.</p></article>
+              <article><strong>Startale host ready</strong><p>The same write calls use the host wallet in a Mini App and an injected wallet on the standalone site.</p></article>
+              <article><strong>No backend authority</strong><p>Plans, caps, paid periods and exits are enforced by MandateProtocol on Minato.</p></article>
             </div>
           </section>
         )}

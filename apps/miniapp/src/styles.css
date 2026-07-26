@@ -383,3 +383,51 @@ footer { display: flex; justify-content: space-between; align-items: center; gap
   .merchant-plan-row > div, .merchant-plan-row > div:nth-of-type(3), .merchant-plan-row > div:nth-of-type(4), .merchant-plan-row button { grid-column: 2; }
   .merchant-plan-row button { width: 100%; }
 }
+
+/* v0.7 — developer SDK, live access gate and integration workbench */
+.sdk-status-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 38px; }
+.sdk-status-grid article { min-height: 138px; display: grid; align-content: center; gap: 7px; padding: 21px; border: 1px solid var(--line); background: var(--paper); border-radius: 20px; box-shadow: var(--shadow-sm); }
+.sdk-status-grid span, .sdk-status-grid small { color: var(--ink-soft); }
+.sdk-status-grid span { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.sdk-status-grid strong { font-size: 18px; overflow-wrap: anywhere; }
+.sdk-status-grid small { line-height: 1.45; }
+.developer-install-card { display: grid; grid-template-columns: minmax(250px, 1fr) minmax(270px, auto) auto; align-items: center; gap: 18px; margin-top: 22px; padding: 20px; border: 1px solid var(--line); background: var(--paper); border-radius: 18px; box-shadow: var(--shadow-sm); }
+.developer-install-card > div { display: grid; gap: 7px; }
+.developer-install-card code { padding: 13px 15px; border: 1px solid #dcd8ff; background: var(--violet-soft); color: #4d46d4; border-radius: 12px; font-weight: 750; overflow-wrap: anywhere; }
+.developer-workbench { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: 18px; margin-top: 22px; }
+.developer-workbench .code-card { margin: 0; min-width: 0; }
+.live-access-gate { padding: 25px; border: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 96%, var(--blue-soft)); border-radius: 22px; box-shadow: var(--shadow-sm); }
+.live-access-gate h2 { margin: 12px 0 10px; font-size: 28px; letter-spacing: -.035em; }
+.live-access-gate > p { color: var(--ink-soft); line-height: 1.6; }
+.live-access-gate > p code { color: var(--violet); font-weight: 700; }
+.live-access-gate label { display: block; margin: 22px 0 8px; color: var(--ink-soft); font-size: 12px; font-weight: 800; }
+.developer-check-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+.developer-check-row input { min-height: 48px; width: 100%; border: 1px solid var(--line-strong); background: var(--paper); color: var(--ink); border-radius: 12px; padding: 11px 13px; outline: none; }
+.developer-check-row input:focus { border-color: #aaa3ff; box-shadow: 0 0 0 4px rgba(99,91,255,.1); }
+.developer-check-message { margin-top: 14px !important; padding: 12px 14px; border-radius: 12px; font-weight: 700; }
+.developer-decision { display: grid; gap: 6px; margin-top: 16px; padding: 17px; border-radius: 15px; }
+.developer-decision span { font-size: 10px; font-weight: 900; letter-spacing: .12em; }
+.developer-decision strong { font-size: 20px; text-transform: capitalize; }
+.developer-decision small { line-height: 1.5; }
+.developer-decision.granted { border: 1px solid #bfe7da; background: var(--mint-soft); color: #14765e; }
+.developer-decision.denied, .developer-check-message.denied { border: 1px solid #f0c7bd; background: var(--coral-soft); color: #ac4c3b; }
+.developer-transaction-code { margin-top: 18px; }
+.code-head button { border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.08); color: #fff; padding: 7px 10px; border-radius: 8px; font-weight: 750; }
+.code-head button:hover { background: rgba(255,255,255,.14); }
+
+@media (max-width: 1050px) {
+  .sdk-status-grid { grid-template-columns: repeat(2, 1fr); }
+  .developer-workbench { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  .developer-install-card { grid-template-columns: 1fr; }
+  .developer-install-card .secondary-button { width: 100%; }
+}
+
+@media (max-width: 650px) {
+  .sdk-status-grid { grid-template-columns: 1fr; }
+  .developer-check-row { grid-template-columns: 1fr; }
+  .developer-check-row .primary-button { width: 100%; }
+  .live-access-gate { padding: 20px; }
+}

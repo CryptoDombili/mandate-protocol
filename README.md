@@ -1,81 +1,61 @@
 # Mandate
 
-**Safe memberships and recurring access for Startale Mini Apps.**
+**User-controlled membership rails for Startale Mini Apps.**
 
-Mandate is an open-source protocol, Mini App, and developer SDK for selling season passes, memberships, creator clubs, and recurring access on Soneium without unlimited token approvals.
+Mandate is an open-source protocol, Mini App and typed developer SDK for memberships, season passes, creator clubs and recurring access on Soneium without unlimited token approvals.
 
-## What is included in v0.1
+## Live Minato preview
 
-- `apps/miniapp`: Startale-compatible Vite + React Mini App and standalone website.
-- `packages/contracts`: non-upgradeable Solidity protocol, test token, deployment script, and security-focused tests.
-- `packages/sdk`: typed viem client and ABI package for other Mini Apps.
-- `examples/game-pass`: a tiny integration example.
-- `docs`: architecture, product specification, threat model, and milestone plan.
-- Startale manifest, embed metadata, and correctly sized placeholder media assets.
+- Network: Soneium Minato — chain ID `1946`
+- Protocol: `0x59CCA55ad8F4AEd1460dCd0356c4B682B986b408`
+- Test token: `0x5cB83Dfd39205E9A0697BD0a1d51874c481bdC9f`
+- Test token label: **Test USDSC** — mock token with no monetary value
+- Production target: **Startale USD (USDSC)**
+
+## v0.7 modules
+
+- `apps/miniapp`: Startale-compatible Vite + React Mini App and standalone web application.
+- `packages/contracts`: non-upgradeable Solidity protocol, mock test token, deployment scripts and tests.
+- `packages/sdk`: typed viem client for plans, subscriptions, access decisions, vaults, settlements and exits.
+- `examples/game-pass`: portable paid-access gate for another Mini App.
+- `docs/SDK.md`: integration guide and API surface.
 
 ## Product model
 
-A user deposits a bounded amount into Mandate, creates a subscription with a spend cap and charge limit, and can pause, cancel, or withdraw remaining funds at any time. A public keeper may trigger a due charge, but the protocol enforces the merchant, token, amount, period, cap, and charge count onchain.
+A user approves a fixed token amount, deposits only that bounded amount into the protected Mandate vault, and creates a subscription with a charge limit and lifetime spend cap. Merchants receive only due charges. Users can pause or cancel future charges and withdraw every unspent token at any time.
 
-## Important status
+## Developer access gate
 
-This is a **Minato testnet foundation**, not an audited production release. Do not use it with valuable assets before an independent security review.
+```ts
+import { MandateClient } from '@mandate/sdk'
 
-## Requirements
+const decision = await mandate.checkAccess(subscriptionId, connectedAccount)
 
-- Node.js 20+
-- npm 10+
+if (decision.granted) {
+  openPremiumFeature()
+}
+```
 
-## Install
+`checkAccess` distinguishes active paid access from an unpaid subscription, expiry, cancellation, completion and subscriber mismatch.
+
+## Safety properties
+
+- No unlimited approval is required.
+- The protocol owner cannot move user vault balances.
+- Emergency charge pauses never block withdrawals.
+- Plan price, interval, token and merchant are immutable after creation.
+- Pausing or cancelling future charges does not remove access already paid through.
+- The protocol is non-upgradeable.
+
+## Commands
 
 ```bash
 npm install
+npm run typecheck
+npm run test
+npm run build
 ```
 
-## Run the Mini App
+## Status
 
-```bash
-cp apps/miniapp/.env.example apps/miniapp/.env
-npm run dev:miniapp
-```
-
-## Test contracts
-
-```bash
-npm run test:contracts
-```
-
-## Deploy to Soneium Minato
-
-```bash
-cp packages/contracts/.env.example packages/contracts/.env
-npm run deploy:minato
-```
-
-After deployment, copy the printed protocol and token addresses into `apps/miniapp/.env`.
-
-## Startale requirements already represented
-
-- Host wallet via `@startale/app-sdk`
-- `sdk.actions.ready()`
-- `/.well-known/farcaster.json`
-- `fc:miniapp` embed metadata
-- Soneium Minato chain ID `1946`
-- HTTPS/Cloudflare-ready static build
-
-The manifest contains a placeholder deployment domain. Replace every `mandate-pass.pages.dev` occurrence before validation.
-
-## Repository layout
-
-```text
-mandate/
-├── apps/miniapp
-├── packages/contracts
-├── packages/sdk
-├── examples/game-pass
-└── docs
-```
-
-## License
-
-MIT
+Minato testnet software. Not audited. Do not use with assets of real value.

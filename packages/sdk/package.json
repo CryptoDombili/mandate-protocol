@@ -1,7 +1,9 @@
 {
   "name": "@mandate/sdk",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.7.0",
+  "private": false,
+  "description": "Typed access and bounded recurring-payment client for Mandate Protocol.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -12,6 +14,12 @@
     }
   },
   "files": ["dist"],
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CryptoDombili/mandate-protocol.git",
+    "directory": "packages/sdk"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"

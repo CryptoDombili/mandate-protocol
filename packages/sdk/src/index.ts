@@ -1,2 +1,4 @@
 export * from './abi.js'
 export * from './client.js'
+export * from './deployments.js'
+export * from './types.js'
