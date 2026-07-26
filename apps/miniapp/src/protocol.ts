@@ -52,6 +52,13 @@ export const protocolReadAbi = [
   },
   {
     type: 'function',
+    name: 'charge',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'subscriptionId', type: 'uint256' }],
+    outputs: [],
+  },
+  {
+    type: 'function',
     name: 'pauseSubscription',
     stateMutability: 'nonpayable',
     inputs: [{ name: 'subscriptionId', type: 'uint256' }],

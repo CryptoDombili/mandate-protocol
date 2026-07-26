@@ -65,6 +65,8 @@ export function App() {
   const [walletTokenBalance, setWalletTokenBalance] = useState(0n)
   const [vaultTokenBalance, setVaultTokenBalance] = useState(0n)
   const [actionId, setActionId] = useState<bigint | null>(null)
+  const [merchantActionId, setMerchantActionId] = useState<bigint | null>(null)
+  const [merchantMessage, setMerchantMessage] = useState('')
 
   useEffect(() => {
     sdk.actions.ready().catch(() => undefined)
@@ -186,7 +188,7 @@ export function App() {
   }, [address, publicClient])
 
   useEffect(() => {
-    if (tab === 'passes') void refreshPasses()
+    if (tab === 'passes' || tab === 'merchant') void refreshPasses()
   }, [tab, refreshPasses])
 
   async function runMembershipAction(membership: LiveMembership, action: 'pause' | 'resume' | 'cancel') {
@@ -240,6 +242,30 @@ export function App() {
       setPassesMessage(getErrorMessage(error))
     } finally {
       setActionId(null)
+    }
+  }
+
+
+  async function chargeMembership(membership: LiveMembership) {
+    if (!publicClient) return
+    setMerchantActionId(membership.id)
+    setMerchantMessage('')
+    try {
+      const hash = await writeContractAsync({
+        address: env.protocolAddress,
+        abi: protocolReadAbi,
+        functionName: 'charge',
+        args: [membership.id],
+      })
+      await publicClient.waitForTransactionReceipt({ hash })
+      setMerchantMessage(
+        `${formatToken(membership.amount)} mUSDC settled for subscription #${membership.id.toString()}.`,
+      )
+      await refreshPasses()
+    } catch (error) {
+      setMerchantMessage(getErrorMessage(error))
+    } finally {
+      setMerchantActionId(null)
     }
   }
 
@@ -449,14 +475,92 @@ export function App() {
         {tab === 'merchant' && (
           <section className="section inner-page">
             <span className="eyebrow">MERCHANT STUDIO</span>
-            <h1>Launch a plan with terms users can trust.</h1>
-            <p className="page-lead">Prices are immutable. Changing terms means publishing a new plan, so existing members never receive a silent price increase.</p>
+            <h1>Settle due access without changing the rules.</h1>
+            <p className="page-lead">
+              Charges are permissionless to trigger, but the merchant, token, amount, interval, spend cap and charge count remain enforced by MandateProtocol.
+            </p>
             <div className="merchant-grid">
-              <article><span>01</span><h3>Define the plan</h3><p>Choose token, amount, period, maximum charges and metadata.</p></article>
-              <article><span>02</span><h3>Integrate access</h3><p>Check paid access through one read call or the TypeScript SDK.</p></article>
-              <article><span>03</span><h3>Receive payments</h3><p>Due charges move directly to the registered merchant address.</p></article>
+              <article><span>01</span><h3>Immutable terms</h3><p>Existing members never receive a silent price or interval increase.</p></article>
+              <article><span>02</span><h3>Permissionless keeper</h3><p>Any account may trigger a due charge, but cannot alter its amount or destination.</p></article>
+              <article><span>03</span><h3>Direct settlement</h3><p>Successful charges move from the protected vault to the registered merchant.</p></article>
             </div>
-            <button className="primary-button">Open plan builder — next milestone</button>
+
+            <div className="merchant-console">
+              <div className="merchant-console-head">
+                <div>
+                  <span className="eyebrow">LIVE KEEPER CONSOLE</span>
+                  <h2>Due charge queue</h2>
+                  <p>This preview lists subscriptions created by the connected account and settles them through the live Minato protocol.</p>
+                </div>
+                <button
+                  className="secondary-button"
+                  onClick={() => void refreshPasses()}
+                  disabled={!isConnected || passesLoading || merchantActionId !== null}
+                >
+                  {passesLoading ? 'Refreshing…' : 'Refresh queue'}
+                </button>
+              </div>
+
+              {merchantMessage && <p className="passes-message">{merchantMessage}</p>}
+
+              {!isConnected ? (
+                <div className="empty-pass-state">
+                  <strong>Connect your wallet to load the live charge queue.</strong>
+                  <button className="primary-button" onClick={connectWallet}>Connect wallet</button>
+                </div>
+              ) : passesLoading ? (
+                <div className="empty-pass-state"><strong>Reading Minato subscriptions…</strong></div>
+              ) : memberships.length === 0 ? (
+                <div className="empty-pass-state">
+                  <strong>No subscriptions are available to settle.</strong>
+                  <p>Create a membership from Discover, then return here when its first charge is due.</p>
+                  <button className="primary-button" onClick={() => setTab('home')}>Explore memberships</button>
+                </div>
+              ) : (
+                <div className="charge-queue">
+                  {memberships.map((membership) => {
+                    const state = statusLabels[membership.status] ?? 'Unknown'
+                    const dueNow = membership.nextChargeAt * 1000n <= BigInt(Date.now())
+                    const hasCapacity = membership.charges < membership.chargeLimit
+                    const canCharge = membership.status === 1 && dueNow && hasCapacity
+                    const isBusy = merchantActionId === membership.id
+                    const availability =
+                      membership.status === 2
+                        ? 'Resume required'
+                        : membership.status === 3
+                          ? 'Cancelled'
+                          : membership.status === 4 || !hasCapacity
+                            ? 'Charge limit complete'
+                            : dueNow
+                              ? 'Due now'
+                              : `Next: ${formatChargeTime(membership.nextChargeAt)}`
+
+                    return (
+                      <article key={membership.id.toString()} className={`charge-row row-${membership.accent}`}>
+                        <span className="membership-badge">{membership.name.slice(0, 2).toUpperCase()}</span>
+                        <div className="charge-copy">
+                          <span className={`state-pill state-${state.toLowerCase()}`}>{state}</span>
+                          <h3>{membership.name}</h3>
+                          <small>Subscription #{membership.id.toString()}</small>
+                        </div>
+                        <div className="charge-details">
+                          <span>{availability}</span>
+                          <strong>{formatToken(membership.amount)} mUSDC</strong>
+                          <small>{membership.charges} / {membership.chargeLimit} charges settled</small>
+                        </div>
+                        <button
+                          className="primary-button charge-button"
+                          onClick={() => chargeMembership(membership)}
+                          disabled={!canCharge || merchantActionId !== null}
+                        >
+                          {isBusy ? 'Settling…' : canCharge ? `Charge ${formatToken(membership.amount)} mUSDC` : availability}
+                        </button>
+                      </article>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </section>
         )}
         {tab === 'developers' && (
