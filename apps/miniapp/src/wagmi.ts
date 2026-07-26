@@ -7,7 +7,9 @@ export const wagmiConfig = createConfig({
   chains: [soneiumMinato],
   connectors: [
     startaleConnector({ appName: 'Mandate' }),
-    injected({ target: 'metaMask' }),
+    // Generic injected detection is more reliable across MetaMask versions
+    // and browsers than forcing a single provider target.
+    injected(),
   ],
   transports: {
     [soneiumMinato.id]: http('https://rpc.minato.soneium.org/'),

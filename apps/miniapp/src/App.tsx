@@ -16,26 +16,48 @@ export function App() {
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null)
   const [tab, setTab] = useState<'home' | 'passes' | 'merchant' | 'developers'>('home')
   const { address, isConnected } = useAccount()
-  const { connectors, connect, isPending } = useConnect()
+  const { connectors, connectAsync, isPending } = useConnect()
   const { disconnect } = useDisconnect()
 
   useEffect(() => {
     sdk.actions.ready().catch(() => undefined)
   }, [])
 
+  const isEmbedded = typeof window !== 'undefined' && window.parent !== window
   const shortAddress = address ? `${address.slice(0, 6)}…${address.slice(-4)}` : ''
 
-  function connectWallet() {
-    const isEmbedded = window.parent !== window
-    const startale = connectors.find((connector) =>
-      `${connector.id} ${connector.name}`.toLowerCase().includes('startale'),
-    )
-    const browserWallet = connectors.find((connector) => {
-      const label = `${connector.id} ${connector.name}`.toLowerCase()
-      return label.includes('metamask') || label.includes('injected')
+  async function connectWallet() {
+    const startale = connectors.find((connector) => {
+      const label = `${connector.id} ${connector.name} ${connector.type}`.toLowerCase()
+      return label.includes('startale')
     })
-    const connector = isEmbedded ? (startale ?? browserWallet) : (browserWallet ?? startale)
-    if (connector) connect({ connector })
+
+    const browserWallet =
+      connectors.find((connector) => connector.type === 'injected') ??
+      connectors.find((connector) => {
+        const label = `${connector.id} ${connector.name} ${connector.type}`.toLowerCase()
+        return label.includes('metamask') || label.includes('injected')
+      })
+
+    // Inside Startale, use the host wallet. On the public website, use MetaMask.
+    const connector = isEmbedded ? (startale ?? browserWallet) : browserWallet
+
+    if (!connector) {
+      window.alert(
+        isEmbedded
+          ? 'Startale host wallet could not be detected. Open this page through the Startale Mini App preview.'
+          : 'MetaMask could not be detected. Please unlock the MetaMask extension and try again.',
+      )
+      return
+    }
+
+    try {
+      await connectAsync({ connector, chainId: 1946 })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Wallet connection failed.'
+      console.error('Wallet connection failed:', error)
+      window.alert(message)
+    }
   }
 
   return (
@@ -47,7 +69,6 @@ export function App() {
         <span>Minato preview</span>
         User-controlled memberships for Startale Mini Apps.
       </div>
-
       <header className="topbar">
         <Logo />
         <nav className="desktop-nav" aria-label="Main navigation">
@@ -58,10 +79,15 @@ export function App() {
         </nav>
         <button className="wallet-button" onClick={isConnected ? () => disconnect() : connectWallet} disabled={isPending}>
           <span className="wallet-avatar">S</span>
-          {isPending ? 'Connecting…' : isConnected ? shortAddress : 'Connect Startale'}
+          {isPending
+            ? 'Connecting…'
+            : isConnected
+              ? shortAddress
+              : isEmbedded
+                ? 'Connect Startale'
+                : 'Connect MetaMask'}
         </button>
       </header>
-
       <main>
         {tab === 'home' && (
           <>
@@ -84,7 +110,6 @@ export function App() {
                   <span><b>03</b> Unused funds stay withdrawable</span>
                 </div>
               </div>
-
               <div className="product-preview" aria-label="Membership dashboard preview">
                 <div className="preview-head">
                   <div>
@@ -93,7 +118,6 @@ export function App() {
                   </div>
                   <span className="count-pill">3 active</span>
                 </div>
-
                 <div className="membership-stack">
                   <article className="mini-membership violet-card">
                     <div className="mini-card-head"><span>ARCADE PRO</span><i>AP</i></div>
@@ -111,7 +135,6 @@ export function App() {
                     <small>Renews 28 Aug · Terms verified</small>
                   </article>
                 </div>
-
                 <div className="spend-panel">
                   <div className="spend-title"><span>Monthly commitment</span><strong>10 / 20 mUSDC</strong></div>
                   <div className="spend-track"><span /></div>
@@ -119,14 +142,12 @@ export function App() {
                 </div>
               </div>
             </section>
-
             <section className="metric-grid">
               <article><span className="metric-icon">↗</span><strong>0</strong><p>admin access to user funds</p></article>
               <article><span className="metric-icon">◎</span><strong>1</strong><p>transparent rule per membership</p></article>
               <article><span className="metric-icon">↩</span><strong>100%</strong><p>unused balance remains withdrawable</p></article>
               <article><span className="metric-icon">S</span><strong>1946</strong><p>Soneium Minato chain ID</p></article>
             </section>
-
             <section className="section" id="plans">
               <div className="section-head">
                 <div>
@@ -139,7 +160,6 @@ export function App() {
                 {plans.map((plan) => <PlanCard key={plan.id} plan={plan} onSelect={setSelectedPlan} />)}
               </div>
             </section>
-
             <section className="protocol-section">
               <div className="protocol-copy">
                 <span className="dark-eyebrow">PROTOCOL STATUS</span>
@@ -160,7 +180,6 @@ export function App() {
             </section>
           </>
         )}
-
         {tab === 'passes' && (
           <section className="section inner-page">
             <span className="eyebrow">YOUR CONTROL CENTER</span>
@@ -178,7 +197,6 @@ export function App() {
             </div>
           </section>
         )}
-
         {tab === 'merchant' && (
           <section className="section inner-page">
             <span className="eyebrow">MERCHANT STUDIO</span>
@@ -192,7 +210,6 @@ export function App() {
             <button className="primary-button">Open plan builder — next milestone</button>
           </section>
         )}
-
         {tab === 'developers' && (
           <section className="section inner-page developer-page">
             <span className="eyebrow">OPEN INFRASTRUCTURE</span>
@@ -210,19 +227,16 @@ export function App() {
           </section>
         )}
       </main>
-
       <footer>
         <Logo />
         <p>Open-source membership infrastructure for Soneium. Testnet software — not audited.</p>
       </footer>
-
       <nav className="mobile-nav">
         <button className={tab === 'home' ? 'active' : ''} onClick={() => setTab('home')}>Discover</button>
         <button className={tab === 'passes' ? 'active' : ''} onClick={() => setTab('passes')}>Passes</button>
         <button className={tab === 'merchant' ? 'active' : ''} onClick={() => setTab('merchant')}>Merchant</button>
         <button className={tab === 'developers' ? 'active' : ''} onClick={() => setTab('developers')}>Developers</button>
       </nav>
-
       {selectedPlan && <SubscribeSheet plan={selectedPlan} onClose={() => setSelectedPlan(null)} />}
     </div>
   )
