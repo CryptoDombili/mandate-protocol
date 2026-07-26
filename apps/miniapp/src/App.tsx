@@ -67,6 +67,42 @@ function formatChargeTime(timestamp: bigint): string {
   )
 }
 
+const metadataPrefix = 'mandate://v1?'
+
+function readMembershipMetadata(metadataURI: string): { name?: string; accent?: Plan['accent'] } {
+  if (!metadataURI.startsWith(metadataPrefix)) return {}
+
+  try {
+    const params = new URLSearchParams(metadataURI.slice(metadataPrefix.length))
+    const rawAccent = params.get('accent')
+    const accent = rawAccent === 'coral' || rawAccent === 'blue' || rawAccent === 'violet'
+      ? rawAccent
+      : undefined
+    const name = params.get('name')?.trim()
+
+    return {
+      name: name || undefined,
+      accent,
+    }
+  } catch {
+    return {}
+  }
+}
+
+function fallbackPlanName(planId: bigint, metadataURI: string): string {
+  if (metadataURI.startsWith('ipfs://')) {
+    const slug = metadataURI.split('/').at(-1)
+    if (slug) {
+      return slug
+        .split('-')
+        .filter(Boolean)
+        .map((part) => `${part[0]?.toUpperCase() ?? ''}${part.slice(1)}`)
+        .join(' ')
+    }
+  }
+
+  return `Plan #${planId.toString()}`
+}
 
 const installSnippet = `npm install @mandate/sdk viem`
 const accessSnippet = `import { MandateClient } from '@mandate/sdk'
@@ -159,7 +195,12 @@ export function App() {
       await connectAsync({ connector, chainId: 1946 })
     } catch (error) {
       console.error('Wallet connection failed:', error)
-      setConnectionMessage(getErrorMessage(error))
+      const message = getErrorMessage(error)
+      setConnectionMessage(
+        message.toLowerCase().includes('rejected')
+          ? 'Wallet connection or network switch was cancelled. Switch MetaMask to Soneium Minato and connect again. No funds moved.'
+          : message,
+      )
     }
   }
 
@@ -271,18 +312,19 @@ export function App() {
             args: [subscription[0]],
           })) as PlanTuple
           const localPlan = plans.find((item) => BigInt(item.id) === subscription[0])
+          const metadata = readMembershipMetadata(plan[6])
 
           return {
             id: subscriptionId,
             planId: subscription[0],
-            name: localPlan?.name ?? plan[6].split('/').at(-1)?.replaceAll('-', ' ') ?? `Plan ${subscription[0]}`,
+            name: localPlan?.name ?? metadata.name ?? fallbackPlanName(subscription[0], plan[6]),
             amount: plan[2],
             nextChargeAt: subscription[5],
             paidUntil: subscription[6],
             status: subscription[9],
             chargeLimit: subscription[7],
             charges: subscription[8],
-            accent: localPlan?.accent ?? 'violet',
+            accent: localPlan?.accent ?? metadata.accent ?? 'violet',
           } satisfies LiveMembership
         }),
       )
