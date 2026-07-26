@@ -2,7 +2,15 @@ import { useState } from 'react'
 import { useMinatoNetwork } from '../minato'
 
 export function NetworkBanner() {
-  const { isCorrectChain, isSwitching, switchToMinato } = useMinatoNetwork()
+  const {
+    isCorrectChain,
+    isEmbeddedStartale,
+    isProviderChainKnown,
+    isSwitching,
+    canSwitch,
+    writeBlockedReason,
+    switchToMinato,
+  } = useMinatoNetwork()
   const [message, setMessage] = useState('')
 
   if (isCorrectChain) return null
@@ -13,16 +21,24 @@ export function NetworkBanner() {
     if (!result.ok) setMessage(result.message ?? 'Could not switch the wallet network.')
   }
 
+  const title = !isProviderChainKnown
+    ? 'Checking wallet network'
+    : isEmbeddedStartale
+      ? 'Startale Preview is read-only for this Minato deployment'
+      : 'Wrong network'
+
   return (
-    <div className="network-banner" role="alert">
+    <div className={`network-banner ${isEmbeddedStartale ? 'host-network-banner' : ''}`} role="alert">
       <div>
-        <strong>Wrong network</strong>
-        <span>Mandate only signs transactions on Soneium Minato. No action has been sent.</span>
+        <strong>{title}</strong>
+        <span>{writeBlockedReason}</span>
         {message && <small>{message}</small>}
       </div>
-      <button type="button" onClick={() => void handleSwitch()} disabled={isSwitching}>
-        {isSwitching ? 'Switching…' : 'Switch to Minato'}
-      </button>
+      {canSwitch && (
+        <button type="button" onClick={() => void handleSwitch()} disabled={isSwitching}>
+          {isSwitching ? 'Switching…' : 'Switch to Minato'}
+        </button>
+      )}
     </div>
   )
 }

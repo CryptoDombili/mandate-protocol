@@ -23,7 +23,7 @@ export function SubscribeSheet({
   const [step, setStep] = useState<'review' | 'approved' | 'deposited' | 'created'>('review')
   const [message, setMessage] = useState('')
   const [checking, setChecking] = useState(false)
-  const { isCorrectChain, switchToMinato } = useMinatoNetwork()
+  const { isCorrectChain, switchToMinato, writeBlockedReason } = useMinatoNetwork()
 
   const chargeLimit = plan.maxCharges ?? 3
   const amountPerCharge = useMemo(() => parseUnits(String(plan.price), 6), [plan.price])
@@ -239,10 +239,24 @@ export function SubscribeSheet({
           })}
         </div>
 
-        <button className="primary-button full" onClick={step === 'created' ? onClose : execute} disabled={isPending || checking}>
-          {checking && !isPending ? 'Checking safety conditions…' : isPending ? 'Waiting for confirmation…' : step === 'created' ? 'Done' : buttonLabel}
+        <button
+          className="primary-button full"
+          onClick={step === 'created' ? onClose : execute}
+          disabled={isPending || checking || (isConnected && !isCorrectChain)}
+        >
+          {isConnected && !isCorrectChain
+            ? 'Minato transactions unavailable'
+            : checking && !isPending
+              ? 'Checking safety conditions…'
+              : isPending
+                ? 'Waiting for confirmation…'
+                : step === 'created'
+                  ? 'Done'
+                  : buttonLabel}
         </button>
-        {message && <p className="transaction-message">{message}</p>}
+        {(message || (isConnected && !isCorrectChain)) && (
+          <p className="transaction-message">{message || writeBlockedReason}</p>
+        )}
       </section>
     </div>
   )

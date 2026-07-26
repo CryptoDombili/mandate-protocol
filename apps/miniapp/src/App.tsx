@@ -156,7 +156,7 @@ export function App() {
   const [developerMessage, setDeveloperMessage] = useState('')
   const [copiedDeveloperSnippet, setCopiedDeveloperSnippet] = useState('')
   const [connectionMessage, setConnectionMessage] = useState('')
-  const { isCorrectChain, switchToMinato } = useMinatoNetwork()
+  const { isCorrectChain, switchToMinato, writeBlockedReason } = useMinatoNetwork()
 
   useEffect(() => {
     sdk.actions.ready().catch(() => undefined)
@@ -816,7 +816,7 @@ export function App() {
                     <button
                       className="secondary-button"
                       onClick={withdrawVault}
-                      disabled={vaultTokenBalance === 0n || actionId !== null}
+                      disabled={vaultTokenBalance === 0n || actionId !== null || (isConnected && !isCorrectChain)}
                     >
                       {actionId === -1n ? 'Withdrawing…' : 'Withdraw all'}
                     </button>
@@ -824,7 +824,9 @@ export function App() {
                   </article>
                 </div>
 
-                {passesMessage && <p className="passes-message">{passesMessage}</p>}
+                {(passesMessage || (isConnected && !isCorrectChain)) && (
+                  <p className="passes-message">{passesMessage || writeBlockedReason}</p>
+                )}
 
                 {passesLoading ? (
                   <div className="empty-pass-state"><strong>Reading Minato activity…</strong></div>
@@ -856,9 +858,9 @@ export function App() {
                             <span>{membership.charges} / {membership.chargeLimit} charges used</span>
                           </div>
                           <div className="membership-actions">
-                            {canPause && <button onClick={() => runMembershipAction(membership, 'pause')} disabled={isBusy}>{isBusy ? 'Waiting…' : 'Pause'}</button>}
-                            {canResume && <button onClick={() => runMembershipAction(membership, 'resume')} disabled={isBusy}>{isBusy ? 'Waiting…' : 'Resume'}</button>}
-                            {canCancel && <button className="danger-button" onClick={() => runMembershipAction(membership, 'cancel')} disabled={isBusy}>{isBusy ? 'Waiting…' : 'Cancel'}</button>}
+                            {canPause && <button onClick={() => runMembershipAction(membership, 'pause')} disabled={isBusy || !isCorrectChain}>{isBusy ? 'Waiting…' : 'Pause'}</button>}
+                            {canResume && <button onClick={() => runMembershipAction(membership, 'resume')} disabled={isBusy || !isCorrectChain}>{isBusy ? 'Waiting…' : 'Resume'}</button>}
+                            {canCancel && <button className="danger-button" onClick={() => runMembershipAction(membership, 'cancel')} disabled={isBusy || !isCorrectChain}>{isBusy ? 'Waiting…' : 'Cancel'}</button>}
                             {!canPause && !canResume && !canCancel && <span className="closed-label">No future charges</span>}
                           </div>
                         </article>
@@ -904,7 +906,9 @@ export function App() {
                 </button>
               </div>
 
-              {merchantMessage && <p className="passes-message">{merchantMessage}</p>}
+              {(merchantMessage || (isConnected && !isCorrectChain)) && (
+                <p className="passes-message">{merchantMessage || writeBlockedReason}</p>
+              )}
 
               {!isConnected ? (
                 <div className="empty-pass-state">
@@ -954,7 +958,7 @@ export function App() {
                         <button
                           className="primary-button charge-button"
                           onClick={() => chargeMembership(membership)}
-                          disabled={!canCharge || merchantActionId !== null}
+                          disabled={!canCharge || merchantActionId !== null || !isCorrectChain}
                         >
                           {isBusy ? 'Settling…' : canCharge ? `Charge ${formatToken(membership.amount)} ${TEST_TOKEN_LABEL}` : availability}
                         </button>
