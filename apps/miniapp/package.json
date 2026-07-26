@@ -1,12 +1,11 @@
 {
   "name": "@mandate/miniapp",
-  "version": "0.9.1",
+  "version": "0.8.1",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && node scripts/write-manifest.mjs",
-    "build:manifest": "node scripts/write-manifest.mjs",
+    "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false"
   },
@@ -15,6 +14,7 @@
     "@mandate/sdk": "0.8.0",
     "@startale/app-sdk": "1.4.1",
     "@tanstack/react-query": "^5.81.5",
+    "@wagmi/core": "^3.7.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "viem": "^2.33.0",
